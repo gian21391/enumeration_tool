@@ -1,0 +1,5 @@
+add_executable(ctl_enumeration ctl.cpp)
+target_link_libraries(ctl_enumeration enumeration_tool ctl_formula)
+
+add_executable(ltl_enumeration ltl.cpp)
+target_link_libraries(ltl_enumeration enumeration_tool copycat)
