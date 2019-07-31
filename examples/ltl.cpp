@@ -85,6 +85,14 @@ public:
       }
     }
   }
+
+  bool formula_exists( const ltl_formula& a)
+  {
+    for (const auto& output : storage->outputs) {
+      if (output == a) return true;
+    }
+    return false;
+  }
 };
 
 class ltl_enumerator : public enumerator<ltl_enumeration_store::ltl_formula> {
@@ -101,7 +109,7 @@ public:
     }
     auto formula = to_enumeration_type();
 
-    if (formula.has_value()) {
+    if (formula.has_value() && !store.formula_exists(formula.value())) {
       store.create_formula(formula.value());
       std::cout << "(" << to_string(formula.value()) << ")" <<  std::endl;
     }
