@@ -3,3 +3,9 @@ target_link_libraries(ctl_enumeration enumeration_tool ctl_formula)
 
 add_executable(ltl_enumeration ltl.cpp)
 target_link_libraries(ltl_enumeration enumeration_tool copycat)
+
+add_executable(xmg_enumeration xmg.cpp)
+target_link_libraries(xmg_enumeration enumeration_tool mockturtle)
+
+add_executable(smt_enumeration smt.cpp)
+target_link_libraries(smt_enumeration enumeration_tool z3_expr)

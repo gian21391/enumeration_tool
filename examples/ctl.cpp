@@ -22,7 +22,7 @@
  */
 
 #include <enumeration_tool/symbol.hpp>
-#include <enumeration_tool/enumerator.hpp>
+#include <enumeration_tool/enumerator_old.hpp>
 
 #include <ctl_formula/ctl_formula.hpp>
 
@@ -87,7 +87,7 @@ public:
   }
 };
 
-class ctl_enumerator : public enumerator<ctl_enumeration_store::ctl_formula> {
+class ctl_enumerator : public enumeration_tool::enumerator<ctl_enumeration_store::ctl_formula> {
 public:
   using store_t = ctl_enumeration_store;
   using formula_t = store_t::ctl_formula;

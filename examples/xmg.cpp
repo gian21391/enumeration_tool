@@ -24,24 +24,24 @@
 #include <enumeration_tool/symbol.hpp>
 #include <enumeration_tool/enumerator_old.hpp>
 
-#include <copycat/ltl.hpp>
+#include <mockturtle/networks/xmg.hpp>
 
 #include <iostream>
 #include <unordered_map>
-#include <set>
-#include <sstream>
+
+/*
 
 enum class EnumerationNodeType {
   Constant, Var, Not, And, X, G, F, U
 };
 
-class ltl_enumeration_store : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationNodeType>, public copycat::ltl_formula_store {
+class xmg_enumeration_store : public enumeration_interface<mockturtle::xmg_network::signal, EnumerationNodeType>, public mockturtle::xmg_network {
 public:
   using NodeType = EnumerationNodeType;
-  using EnumerationType = copycat::ltl_formula_store::ltl_formula;
+  using EnumerationType = mockturtle::xmg_network::signal;
 
   std::vector<NodeType> get_node_types() override {
-    return { /*NodeType::Constant,*/ NodeType::Not, NodeType::And, NodeType::G, NodeType::F, NodeType::X, NodeType::U };
+    return { NodeType::Constant, NodeType::Not, NodeType::X, NodeType::G, NodeType::F, NodeType::And, NodeType::U };
   }
 
   std::vector<NodeType> get_variable_node_types() override {
@@ -57,15 +57,6 @@ public:
     if (t == NodeType::And) { return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_and(a, b); }; }
     if (t == NodeType::U) { return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_until(a, b); }; }
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
-  }
-
-  enumeration_attributes get_enumeration_attributes(NodeType t) override {
-    if (t == NodeType::Not) { return {enumeration_attributes::no_double_application}; }
-    if (t == NodeType::And) { return {enumeration_attributes::commutative, enumeration_attributes::idempotent}; }
-    if (t == NodeType::G) { return {enumeration_attributes::no_double_application}; }
-    if (t == NodeType::F) { return {enumeration_attributes::no_double_application}; }
-    if (t == NodeType::U) { return {enumeration_attributes::idempotent}; }
-    return {};
   }
 
   callback_fn get_variable_callback(EnumerationType e) override {
@@ -86,10 +77,10 @@ public:
 
   void foreach_variable( std::function<bool(EnumerationType)>&& fn ) const override
   {
-    auto begin = storage->inputs.begin(), end = storage->inputs.end();
+    auto begin = _storage->inputs.begin(), end = _storage->inputs.end();
     while ( begin != end )
     {
-      ltl_formula f = {*begin++, 0};
+      signal f = {*begin++, 0};
       if ( !fn( f ) )
       {
         return;
@@ -97,45 +88,34 @@ public:
     }
   }
 
-  void add_formula( ltl_formula const& a )
+  bool formula_exists( const signal& a)
   {
-    formulas.insert(a);
+    for (const auto& output : _storage->outputs) {
+      if (output == a) return true;
+    }
+    return false;
   }
-
-  bool formula_exists( const ltl_formula& a)
-  {
-    auto search = formulas.find(a);
-    return search != formulas.end();
-  }
-
-  std::set<ltl_formula> formulas;
 };
 
-class ltl_enumerator : public enumeration_tool::enumerator<ltl_enumeration_store::ltl_formula> {
+class xmg_enumerator : public enumerator<xmg_enumeration_store::signal> {
 public:
-  using store_t = ltl_enumeration_store;
-  using formula_t = store_t::ltl_formula;
+  using store_t = xmg_enumeration_store;
+  using formula_t = store_t::signal;
 
-  explicit ltl_enumerator(store_t& s, const std::unordered_map<uint32_t, std::string>& v)
+  explicit xmg_enumerator(store_t& s, std::unordered_map<uint32_t, std::string>& v)
     : enumerator{s.build_symbols()}, variable_names{v}, store{s} {}
 
   void use_formula() override {
-    auto temp_vector = std::vector<unsigned>({1,8,1,7,6});
-    if (stack == temp_vector) {
-      auto breakpoint = true;
+    for (const auto& element : stack) {
+      std::cout << element << " ";
     }
-//    for (const auto& element : stack) {
-//      std::cout << element << " ";
-//    }
     auto formula = to_enumeration_type();
-    ++num_formulas;
 
     if (formula.has_value() && !store.formula_exists(formula.value())) {
-      ++num_non_duplicate_formulas;
-      store.add_formula(formula.value());
+      store.create_formula(formula.value());
       std::cout << "(" << to_string(formula.value()) << ")" <<  std::endl;
     }
-//    else std::cout << std::endl;
+    else std::cout << std::endl;
   }
 
   std::string to_string(const formula_t& formula) const
@@ -197,40 +177,24 @@ public:
     throw std::runtime_error( "Node of unknown type" );
   }
 
-  void print_statistics()
-  {
-    std::cerr << "#Formulas: " << num_formulas << std::endl;
-    std::cerr << "#NonDuplicate: " << num_non_duplicate_formulas << std::endl;
-  }
-
-  const std::unordered_map<uint32_t, std::string>& variable_names;
+  std::unordered_map<uint32_t, std::string>& variable_names;
   store_t& store;
-  uint64_t num_formulas = 0;
-  uint64_t num_non_duplicate_formulas = 0;
 };
 
 int main()
 {
-  ltl_enumeration_store store;
+  xmg_enumeration_store store;
 
   std::unordered_map<uint32_t, std::string> variable_names;
 
-//  auto a = store.create_variable();
-//  variable_names.insert({uint32_t{a.index}, "a"});
-//  auto b = store.create_variable();
-//  variable_names.insert({uint32_t{b.index}, "b"});
+  auto a = store.create_variable();
+  variable_names.insert({uint32_t{a.index}, "a"});
+  auto b = store.create_variable();
+  variable_names.insert({uint32_t{b.index}, "b"});
 
-  for (int i = 0; i < 10; ++i) {
-    auto variable = store.create_variable();
-    std::stringstream ss;
-    ss << "x" << std::to_string(i);
-    variable_names.insert({uint32_t{variable.index}, ss.str() });
-  }
-
-  ltl_enumerator en(store, variable_names);
-  en.enumerate(5);
-
-  en.print_statistics();
+  xmg_enumerator en(store, variable_names);
+  en.enumerate(7);
 
   return 0;
 }
+*/
