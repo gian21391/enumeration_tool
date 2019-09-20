@@ -30,15 +30,47 @@
 #include <optional>
 #include <functional>
 
+class enumeration_attributes {
+public:
+  enum EnumerationAttributeEnum {
+    no                    = 0,
+    no_double_application = 1,
+    idempotent            = 1 << 1,
+    commutative           = 1 << 2
+  };
+
+  enumeration_attributes() {
+    set(no);
+  }
+
+  enumeration_attributes(std::initializer_list<EnumerationAttributeEnum> l) {
+    for (const auto& item : l) {
+      set(item);
+    }
+  }
+
+  [[nodiscard]] bool is_set( uint32_t flag ) const {
+    return ( ( attributes & flag ) == flag );
+  }
+
+  void set(EnumerationAttributeEnum attr) {
+    attributes = attributes | uint32_t(attr);
+  }
+
+protected:
+  uint32_t attributes = 0;
+};
+
 template <typename EnumerationType>
 class enumeration_symbol {
 public:
   using enumeration_symbol_pointer = int;
 
-  int num_children = 0;
+  uint32_t num_children = 0;
   std::vector<enumeration_symbol_pointer> children;
   int32_t cost = 1;
   multi_signature_callable<EnumerationType> constructor_callback;
+  enumeration_attributes attributes;
 };
 
 template <typename EnumerationType, typename NodeType = uint32_t>
@@ -53,6 +85,7 @@ public:
   virtual uint32_t get_num_children(NodeType t) = 0;
   virtual void foreach_variable(std::function<bool(EnumerationType)>&& fn) const = 0;
   virtual int32_t get_node_cost(NodeType t) = 0;
+  virtual enumeration_attributes get_enumeration_attributes(NodeType t) { return {}; }
 
   auto build_symbols() {
     std::vector<enumeration_symbol<EnumerationType>> symbols;
@@ -63,6 +96,7 @@ public:
       enumeration_symbol<EnumerationType> symbol;
       symbol.num_children = get_num_children(element);
       symbol.constructor_callback = get_constructor_callback(element);
+      symbol.attributes = get_enumeration_attributes(element);
       symbols.emplace_back(symbol);
     }
 
