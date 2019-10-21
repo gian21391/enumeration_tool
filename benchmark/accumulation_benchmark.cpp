@@ -1,4 +1,5 @@
-#include <benchmark/benchmark.h>
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
+#include <catch.hpp>
 
 #include "enumerator.hpp"
 #include <enumeration_tool/symbol.hpp>
@@ -109,123 +110,81 @@ public:
   uint32_t num_non_duplicate_formulas = 0;
 };
 
-static void accum_enumeration_test_cost_3( benchmark::State& state)
-{
-  ltl_enumeration_store store;
+TEST_CASE("accum_enumeration_test", "[benchmark]") {
 
-  std::unordered_map<uint32_t, std::string> variable_names;
+  BENCHMARK_ADVANCED("cost3")(Catch::Benchmark::Chronometer meter)
+  {
+    ltl_enumeration_store store;
+    std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({uint32_t{a.index}, "a"});
+    auto b = store.create_variable();
+    variable_names.insert({uint32_t{b.index}, "b"});
 
-  auto a = store.create_variable();
-  variable_names.insert({uint32_t{a.index}, "a"});
-  auto b = store.create_variable();
-  variable_names.insert({uint32_t{b.index}, "b"});
+    for (int i = 0; i < 8; ++i) {
+      store.create_variable();
+    }
 
-  for (int i = 0; i < 8; ++i) {
-    store.create_variable();
-  }
+    ltl_enumerator_test en(store, variable_names);
+    meter.measure([&] { return en.enumerate(3); });
+    //state.counters["#Formulas"] = en.num_formulas;
+    //state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
+  };
 
-  ltl_enumerator_test en(store, variable_names);
-  for (auto _ : state) {
-    en.enumerate( 3 );
-  }
-  state.counters["#Formulas"] = en.num_formulas;
-  state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
+  BENCHMARK_ADVANCED("cost4")(Catch::Benchmark::Chronometer meter)
+  {
+    ltl_enumeration_store store;
+    std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
+
+    for (int i = 0; i < 8; ++i) {
+      store.create_variable();
+    }
+
+    ltl_enumerator_test en(store, variable_names);
+    meter.measure([&] { return en.enumerate(4); });
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
+  };
+
+  BENCHMARK_ADVANCED("cost5")(Catch::Benchmark::Chronometer meter)
+  {
+    ltl_enumeration_store store;
+    std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
+
+    for (int i = 0; i < 8; ++i) {
+      store.create_variable();
+    }
+
+    ltl_enumerator_test en(store, variable_names);
+    meter.measure([&] { return en.enumerate(5); });
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
+  };
+
+  BENCHMARK_ADVANCED("cost6")(Catch::Benchmark::Chronometer meter)
+  {
+    ltl_enumeration_store store;
+    std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
+
+    for (int i = 0; i < 8; ++i) {
+      store.create_variable();
+    }
+
+    ltl_enumerator_test en(store, variable_names);
+    meter.measure([&] { return en.enumerate(6); });
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
+  };
 }
-
-static void accum_enumeration_test_cost_4( benchmark::State& state)
-{
-  ltl_enumeration_store store;
-
-  std::unordered_map<uint32_t, std::string> variable_names;
-
-  auto a = store.create_variable();
-  variable_names.insert({uint32_t{a.index}, "a"});
-  auto b = store.create_variable();
-  variable_names.insert({uint32_t{b.index}, "b"});
-
-  for (int i = 0; i < 8; ++i) {
-    store.create_variable();
-  }
-
-  ltl_enumerator_test en(store, variable_names);
-  for (auto _ : state) {
-    en.enumerate( 4 );
-  }
-  state.counters["#Formulas"] = en.num_formulas;
-  state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
-}
-
-static void accum_enumeration_test_cost_5( benchmark::State& state)
-{
-  ltl_enumeration_store store;
-
-  std::unordered_map<uint32_t, std::string> variable_names;
-
-  auto a = store.create_variable();
-  variable_names.insert({uint32_t{a.index}, "a"});
-  auto b = store.create_variable();
-  variable_names.insert({uint32_t{b.index}, "b"});
-
-  for (int i = 0; i < 8; ++i) {
-    store.create_variable();
-  }
-
-  ltl_enumerator_test en(store, variable_names);
-  for (auto _ : state) {
-    en.enumerate( 5 );
-  }
-  state.counters["#Formulas"] = en.num_formulas;
-  state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
-}
-
-static void accum_enumeration_test_cost_6( benchmark::State& state)
-{
-  ltl_enumeration_store store;
-
-  std::unordered_map<uint32_t, std::string> variable_names;
-
-  auto a = store.create_variable();
-  variable_names.insert({uint32_t{a.index}, "a"});
-  auto b = store.create_variable();
-  variable_names.insert({uint32_t{b.index}, "b"});
-
-  for (int i = 0; i < 8; ++i) {
-    store.create_variable();
-  }
-
-  ltl_enumerator_test en(store, variable_names);
-  for (auto _ : state) {
-    en.enumerate( 6 );
-  }
-  state.counters["#Formulas"] = en.num_formulas;
-  state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
-}
-
-static void accum_enumeration_test_cost_7( benchmark::State& state)
-{
-  ltl_enumeration_store store;
-
-  std::unordered_map<uint32_t, std::string> variable_names;
-
-  auto a = store.create_variable();
-  variable_names.insert({uint32_t{a.index}, "a"});
-  auto b = store.create_variable();
-  variable_names.insert({uint32_t{b.index}, "b"});
-
-  for (int i = 0; i < 8; ++i) {
-    store.create_variable();
-  }
-
-  ltl_enumerator_test en(store, variable_names);
-  for (auto _ : state) {
-    en.enumerate( 7 );
-  }
-  state.counters["#Formulas"] = en.num_formulas;
-  state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
-}
-
-BENCHMARK( accum_enumeration_test_cost_3);
-BENCHMARK( accum_enumeration_test_cost_4);
-BENCHMARK( accum_enumeration_test_cost_5);
-BENCHMARK( accum_enumeration_test_cost_6);
-//BENCHMARK( accum_enumeration_test_cost_7)->Unit( benchmark::kMillisecond);

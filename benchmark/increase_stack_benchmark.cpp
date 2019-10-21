@@ -1,4 +1,5 @@
-#include <benchmark/benchmark.h>
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
+#include <catch.hpp>
 
 #include <enumeration_tool/symbol.hpp>
 
@@ -302,59 +303,58 @@ protected:
   uint64_t counter;
 };
 
-static void increase_stack_test_curent(benchmark::State& state) {
-  std::vector<enumeration_symbol<EnumerationType>> symbols;
+TEST_CASE("increase_stack_test", "[benchmark]")
+{
 
-  enumeration_symbol<EnumerationType> s0;
-  s0.num_children = 0;
-  for (int i = 0; i < 10; ++i) {
-    symbols.emplace_back(s0);
-  }
+  BENCHMARK_ADVANCED("current") (Catch::Benchmark::Chronometer meter)
+  {
+    std::vector<enumeration_symbol<EnumerationType>> symbols;
 
-  enumeration_symbol<EnumerationType> s1;
-  s1.num_children = 1;
-  for (int i = 0; i < 2; ++i) {
-    symbols.emplace_back(s1);
-  }
+    enumeration_symbol<EnumerationType> s0;
+    s0.num_children = 0;
+    for (int i = 0; i < 10; ++i) {
+      symbols.emplace_back(s0);
+    }
 
-  enumeration_symbol<EnumerationType> s2;
-  s2.num_children = 2;
-  for (int i = 0; i < 2; ++i) {
-    symbols.emplace_back(s2);
-  }
+    enumeration_symbol<EnumerationType> s1;
+    s1.num_children = 1;
+    for (int i = 0; i < 2; ++i) {
+      symbols.emplace_back(s1);
+    }
 
-  enumerator en(symbols);
-  for (auto _ : state) {
-    en.enumerate( 6 );
-  }
+    enumeration_symbol<EnumerationType> s2;
+    s2.num_children = 2;
+    for (int i = 0; i < 2; ++i) {
+      symbols.emplace_back(s2);
+    }
+
+    enumerator en(symbols);
+    meter.measure([&] { return en.enumerate(6); });
+  };
+
+  BENCHMARK_ADVANCED("base conversion") (Catch::Benchmark::Chronometer meter)
+  {
+    std::vector<enumeration_symbol<EnumerationType>> symbols;
+
+    enumeration_symbol<EnumerationType> s0;
+    s0.num_children = 0;
+    for (int i = 0; i < 10; ++i) {
+      symbols.emplace_back(s0);
+    }
+
+    enumeration_symbol<EnumerationType> s1;
+    s1.num_children = 1;
+    for (int i = 0; i < 2; ++i) {
+      symbols.emplace_back(s1);
+    }
+
+    enumeration_symbol<EnumerationType> s2;
+    s2.num_children = 2;
+    for (int i = 0; i < 2; ++i) {
+      symbols.emplace_back(s2);
+    }
+
+    enumerator_base_conversion en(symbols);
+    meter.measure([&] { return en.enumerate(6); });
+  };
 }
-
-static void increase_stack_test_base_conversion(benchmark::State& state) {
-  std::vector<enumeration_symbol<EnumerationType>> symbols;
-
-  enumeration_symbol<EnumerationType> s0;
-  s0.num_children = 0;
-  for (int i = 0; i < 10; ++i) {
-    symbols.emplace_back(s0);
-  }
-
-  enumeration_symbol<EnumerationType> s1;
-  s1.num_children = 1;
-  for (int i = 0; i < 2; ++i) {
-    symbols.emplace_back(s1);
-  }
-
-  enumeration_symbol<EnumerationType> s2;
-  s2.num_children = 2;
-  for (int i = 0; i < 2; ++i) {
-    symbols.emplace_back(s2);
-  }
-
-  enumerator_base_conversion en(symbols);
-  for (auto _ : state) {
-    en.enumerate( 6 );
-  }
-}
-
-BENCHMARK(increase_stack_test_curent);
-BENCHMARK(increase_stack_test_base_conversion);
