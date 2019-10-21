@@ -9,3 +9,9 @@ target_link_libraries(xmg_enumeration enumeration_tool mockturtle)
 
 add_executable(smt_enumeration smt.cpp)
 target_link_libraries(smt_enumeration enumeration_tool z3_expr)
+
+add_executable(partial_dag_test partial_dag.cpp)
+target_link_libraries(partial_dag_test enumeration_tool kitty nauty fmt copycat)
+
+add_executable(partial_enumeration partial_enumeration.cpp)
+target_link_libraries(partial_enumeration enumeration_tool kitty nauty fmt copycat)
