@@ -29,6 +29,9 @@
 #include <string>
 #include <optional>
 #include <functional>
+#include <numeric>
+
+//TODO: the "nothing" symbol needs to be added unless we manage that at algorithmic level
 
 class enumeration_attributes {
 public:
@@ -114,4 +117,86 @@ public:
 
     return symbols;
   }
+};
+
+template <typename EnumerationType>
+class symbol_collection {
+  using nodes_collection_t = std::vector<enumeration_symbol<EnumerationType>>;
+  using variables_collection_t = std::vector<enumeration_symbol<EnumerationType>>;
+
+  nodes_collection_t nodes;
+  variables_collection_t variables;
+  unsigned long max_cardinality = 0;
+
+public:
+  explicit symbol_collection(const std::vector<enumeration_symbol<EnumerationType>>& symbols) {
+    for (int i = 0; i < symbols.size(); i++) {
+      if (max_cardinality < symbols[i].num_children) max_cardinality = symbols[i].num_children;
+      if (symbols[i].num_children == 0) variables.emplace_back(symbols[i]);
+      else nodes.emplace_back(symbols[i]);
+    }
+  }
+
+  const enumeration_symbol<EnumerationType>& operator[](std::size_t index) const {
+    if (index < nodes.size())
+    {
+      return nodes[index];
+    }
+    else
+    {
+      return variables[index - nodes.size()];
+    }
+  }
+
+  [[nodiscard]]
+  typename variables_collection_t::size_type variables_number() const { return variables.size(); }
+  [[nodiscard]]
+  typename nodes_collection_t::size_type nodes_number() const { return nodes.size(); }
+
+  const nodes_collection_t& get_nodes() const { return nodes; }
+  const variables_collection_t& get_variables() const { return variables; }
+
+  [[nodiscard]]
+  const std::vector<unsigned>& get_nodes_indexes() const {
+    static std::vector<unsigned> nodes_indexes;
+    if (nodes_indexes.empty()) {
+      auto n = 0ul;
+      for(auto i = 0ul; i < nodes.size(); i++) {
+        nodes_indexes.emplace_back(n++);
+      }
+    }
+    return nodes_indexes;
+  }
+
+  [[nodiscard]]
+  const std::vector<unsigned>& get_max_cardinality_nodes_indexes() const {
+    static std::vector<unsigned> nodes_indexes;
+    if (nodes_indexes.empty()) {
+      for (auto i = 0ul; i < nodes.size(); i++) {
+        if (nodes[i].num_children == 2) nodes_indexes.emplace_back(i);
+      }
+    }
+    return nodes_indexes;
+  }
+
+  [[nodiscard]]
+  const std::vector<unsigned>& get_variables_indexes() const {
+    static std::vector<unsigned> variables_indexes;
+    if (variables_indexes.empty()) {
+      auto n = nodes.size();
+      for(auto i = 0ul; i < variables.size(); i++) {
+        variables_indexes.emplace_back(n++);
+      }
+    }
+    return variables_indexes;
+  }
+
+  [[nodiscard]]
+  unsigned int get_max_cardinality() const { return max_cardinality; }
+
+  [[nodiscard]]
+  bool empty() const { return size() == 0; }
+
+  std::size_t size() { return nodes.size() + variables.size(); }
+
 };

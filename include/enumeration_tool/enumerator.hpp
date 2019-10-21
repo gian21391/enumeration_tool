@@ -54,3 +54,4 @@ public:
 
 #include "enumerators/direct_enumerator.hpp"
 #include "enumerators/indirect_enumerator.hpp"
+#include "enumerators/direct_enumerator_partial_dag.hpp"
