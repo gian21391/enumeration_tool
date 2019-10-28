@@ -32,7 +32,9 @@ template<typename EnumerationType>
 class direct_enumerator_partial_dag {
 public:
   explicit direct_enumerator_partial_dag( const std::vector<enumeration_symbol<EnumerationType>>& s ) : symbols{s}
-  {}
+  {
+    //TODO: check whether the class has the methods needed with static assertions
+  }
 
   virtual void use_formula() = 0;
 
