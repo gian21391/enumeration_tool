@@ -23,15 +23,11 @@
 
 #pragma once
 
-#include "multi_signature_callable.hpp"
-
 #include <vector>
 #include <string>
 #include <optional>
 #include <functional>
 #include <numeric>
-
-//TODO: the "nothing" symbol needs to be added unless we manage that at algorithmic level
 
 class enumeration_attributes {
 public:
@@ -72,14 +68,14 @@ public:
   uint32_t num_children = 0;
   std::vector<enumeration_symbol_pointer> children;
   int32_t cost = 1;
-  multi_signature_callable<EnumerationType> constructor_callback;
+  std::function<EnumerationType(const std::vector<EnumerationType>&)> constructor_callback;
   enumeration_attributes attributes;
 };
 
 template <typename EnumerationType, typename NodeType = uint32_t>
 class enumeration_interface {
 public:
-  using callback_fn = std::variant<std::function<EnumerationType()>, std::function<EnumerationType(EnumerationType)>, std::function<EnumerationType(EnumerationType, EnumerationType)>>;
+  using callback_fn = std::function<EnumerationType(const std::vector<EnumerationType>&)>;
 
   virtual std::vector<NodeType> get_node_types() = 0;
   virtual std::vector<NodeType> get_variable_node_types() = 0;
@@ -90,7 +86,8 @@ public:
   virtual int32_t get_node_cost(NodeType t) = 0;
   virtual enumeration_attributes get_enumeration_attributes(NodeType t) { return {}; }
 
-  auto build_symbols() {
+  auto build_symbols() -> std::vector<enumeration_symbol<EnumerationType>>
+  {
     std::vector<enumeration_symbol<EnumerationType>> symbols;
 
     auto node_types = get_node_types();
