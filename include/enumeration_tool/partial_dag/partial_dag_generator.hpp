@@ -50,11 +50,11 @@ private:
 
     // Array indicating which steps have been covered. (And how many
     // times.) 
-    int _covered_steps[18];
+    std::array<int, 18> _covered_steps;
 
     // Array indicating which steps are "disabled", meaning that
     // selecting them will not result in a valid DAG.
-    int _disabled_matrix[18][18][18];
+    std::array<std::array<std::array<int, 18>, 18>, 18> _disabled_matrix;
 
     partial_gen_type _gen_type = GEN_NOREAPPLY;
 
@@ -73,8 +73,8 @@ public:
     }
 
     // Two arrays that represent the "stack" of selected steps.
-    int _js[18];
-    int _ks[18];
+    std::array<int, 18> _js;
+    std::array<int, 18> _ks;
 
     // The level from which the search is assumed to have started
     int _start_level = 1;
@@ -99,7 +99,7 @@ public:
 
     void clear_callback()
     {
-        _callback = 0;
+        _callback = {};
     }
 
     void reset(int nr_vertices)
