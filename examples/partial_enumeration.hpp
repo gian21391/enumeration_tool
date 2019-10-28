@@ -40,11 +40,17 @@ enum class EnumerationNodeType
 
 class ltl_enumeration_store
   : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationNodeType>
-    , public copycat::ltl_formula_store
+  , public copycat::ltl_formula_store
 {
 public:
   using NodeType = EnumerationNodeType;
   using EnumerationType = copycat::ltl_formula_store::ltl_formula;
+  using store_t = ltl_enumeration_store;
+  using formula_t = store_t::ltl_formula;
+
+  ltl_enumeration_store(const std::unordered_map<uint32_t, std::string>& variable_names)
+  : variable_names{variable_names}
+  {}
 
   std::vector<NodeType> get_node_types() override { return { /*NodeType::Constant,*/ NodeType::Not, NodeType::And, NodeType::G, NodeType::F, NodeType::X, NodeType::U }; }
 
@@ -53,25 +59,25 @@ public:
   callback_fn get_constructor_callback(NodeType t) override
   {
     if (t == NodeType::Constant) {
-      return [&]() -> EnumerationType { return get_constant(false); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.empty()); return get_constant(false); };
     }
     if (t == NodeType::Not) {
-      return [&](EnumerationType a) -> EnumerationType { return !a; };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return !children[0]; };
     }
     if (t == NodeType::X) {
-      return [&](EnumerationType a) -> EnumerationType { return create_next(a); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_next(children[0]); };
     }
     if (t == NodeType::G) {
-      return [&](EnumerationType a) -> EnumerationType { return create_globally(a); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_globally(children[0]); };
     }
     if (t == NodeType::F) {
-      return [&](EnumerationType a) -> EnumerationType { return create_eventually(a); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_eventually(children[0]); };
     }
     if (t == NodeType::And) {
-      return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_and(a, b); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_and(children[0], children[1]); };
     }
     if (t == NodeType::U) {
-      return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_until(a, b); };
+      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_until(children[0], children[1]); };
     }
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
@@ -98,7 +104,7 @@ public:
 
   callback_fn get_variable_callback(EnumerationType e) override
   {
-    return [e]() { return e; };
+    return [e](const std::vector<EnumerationType>& children) { assert(children.empty()); return e; };
   }
 
   uint32_t get_num_children(NodeType t) override
@@ -141,95 +147,83 @@ public:
     return search != formulas.end();
   }
 
-  std::set<ltl_formula> formulas;
-};
-
-using enumeration_type = ltl_enumeration_store::ltl_formula;
-class ltl_enumerator : public enumeration_tool::enumerator<enumeration_type, enumeration_tool::direct_enumerator_partial_dag<enumeration_type>>
-{
-public:
-  using store_t = ltl_enumeration_store;
-  using formula_t = store_t::ltl_formula;
-
-  explicit ltl_enumerator(store_t& s, const std::unordered_map<uint32_t, std::string>& v)
-    : enumerator{ s.build_symbols() }
-    , variable_names{ v }
-    , store{ s }
+  void use_formula(std::optional<ltl_enumeration_store::ltl_formula> formula)
   {
-  }
-
-  void use_formula() override
-  {
-    auto formula = to_enumeration_type();
     ++num_formulas;
 
-    if (formula.has_value() && !store.formula_exists(formula.value())) {
+    if (formula.has_value() && !formula_exists(formula.value())) {
       ++num_non_duplicate_formulas;
-      store.add_formula(formula.value());
+      add_formula(formula.value());
 //      std::cout << "(" << to_string(formula.value()) << ")" << std::endl;
     }
   }
 
   std::string to_string(const formula_t& formula) const
   {
-    auto node = store.get_node(formula);
+    auto node = get_node(formula);
 
-    if (store.is_complemented(formula)) {
+    if (is_complemented(formula)) {
       return "(!" + to_string(!formula) + ")";
     }
 
-    if (store.is_constant(node)) {
+    if (is_constant(node)) {
       return "false";
     }
-    if (store.is_variable(node)) {
+    if (is_variable(node)) {
       auto item = variable_names.find(node);
-      if (item != variable_names.end())
+      if (item != variable_names.end()) {
         return item->second;
-      else
-        return "";
+      }
+      return "";
     }
-    if (store.is_and(node)) {
+    if (is_and(node)) {
       formula_t a{ 0 };
       formula_t b{ 0 };
 
-      store.foreach_fanin(node, [&](formula_t f, unsigned i) {
-        if (i == 0)
+      foreach_fanin(node, [&](formula_t f, unsigned i) {
+        if (i == 0) {
           a = f;
-        if (i == 1)
+        }
+        if (i == 1) {
           b = f;
+        }
       });
 
       return "(" + to_string(a) + "&" + to_string(b) + ")";
     }
-    if (store.is_next(node)) {
+    if (is_next(node)) {
       formula_t a{ 0 };
 
-      store.foreach_fanin(node, [&](formula_t f, unsigned i) {
-        if (i == 0)
+      foreach_fanin(node, [&](formula_t f, unsigned i) {
+        if (i == 0) {
           a = f;
+        }
       });
 
       return "X(" + to_string(a) + ")";
     }
-    if (store.is_eventually(node)) {
+    if (is_eventually(node)) {
       formula_t a{ 0 };
 
-      store.foreach_fanin(node, [&](formula_t f, unsigned i) {
-        if (i == 0)
+      foreach_fanin(node, [&](formula_t f, unsigned i) {
+        if (i == 0) {
           a = f;
+        }
       });
 
       return "F(" + to_string(a) + ")";
     }
-    if (store.is_until(node)) {
+    if (is_until(node)) {
       formula_t a{ 0 };
       formula_t b{ 0 };
 
-      store.foreach_fanin(node, [&](formula_t f, unsigned i) {
-        if (i == 0)
+      foreach_fanin(node, [&](formula_t f, unsigned i) {
+        if (i == 0) {
           a = f;
-        if (i == 1)
+        }
+        if (i == 1) {
           b = f;
+        }
       });
 
       return "(" + to_string(a) + ")U(" + to_string(b) + ")";
@@ -241,11 +235,10 @@ public:
   {
     std::cerr << "#Formulas: " << num_formulas << std::endl;
     std::cerr << "#NonDuplicate: " << num_non_duplicate_formulas << std::endl;
-    std::cerr << "#DAGS: " << dags.size() << std::endl;
   }
 
-  const std::unordered_map<uint32_t, std::string>& variable_names;
-  store_t& store;
   uint64_t num_formulas = 0;
   uint64_t num_non_duplicate_formulas = 0;
+  const std::unordered_map<uint32_t, std::string>& variable_names;
+  std::set<ltl_formula> formulas;
 };
