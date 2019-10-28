@@ -75,7 +75,8 @@ public:
 
   void foreach_variable( std::function<bool(EnumerationType)>&& fn ) const override
   {
-    auto begin = storage->inputs.begin(), end = storage->inputs.end();
+    auto begin = storage->inputs.begin();
+    auto end = storage->inputs.end();
     while ( begin != end )
     {
       ctl_formula f = {*begin++, 0};
