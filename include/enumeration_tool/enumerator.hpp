@@ -44,8 +44,6 @@ class enumerator<void, void>
 public:
   explicit enumerator() = delete;
 
-  virtual void use_formula() = 0;
-
   void enumerate(unsigned min_cost, unsigned max_cost) {}
   void enumerate(unsigned max_cost) {}
 };
