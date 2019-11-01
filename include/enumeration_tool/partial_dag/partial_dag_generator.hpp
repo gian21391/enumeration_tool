@@ -697,6 +697,7 @@ inline std::vector<partial_dag> trees_generate_filtered(int max_vertices, int nr
     gen.count_dags();
   }
 
+  // delete DAG if it is not a tree (each node has a unique parent node)
   dags.erase(std::remove_if(dags.begin(), dags.end(),
               [](const auto& item) {
                 std::vector<int> edge_count(item.nr_vertices(), 0);

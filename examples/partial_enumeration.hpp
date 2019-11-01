@@ -82,6 +82,35 @@ public:
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
+  auto get_possible_children(NodeType t) -> std::vector<NodeType> override
+  {
+    if (t == NodeType::Constant) {
+      return {};
+    }
+    if (t == NodeType::Var) {
+      return {};
+    }
+    if (t == NodeType::Not) {
+      return {NodeType::Var, NodeType::Constant};
+    }
+    if (t == NodeType::X) {
+      return {};
+    }
+    if (t == NodeType::G) {
+      return {};
+    }
+    if (t == NodeType::F) {
+      return {};
+    }
+    if (t == NodeType::And) {
+      return {};
+    }
+    if (t == NodeType::U) {
+      return {};
+    }
+    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
+  }
+
   enumeration_attributes get_enumeration_attributes(NodeType t) override
   {
     if (t == NodeType::Not) {

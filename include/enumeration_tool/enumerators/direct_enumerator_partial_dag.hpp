@@ -28,10 +28,10 @@
 
 namespace enumeration_tool {
 
-template<typename EnumerationType>
+template<typename EnumerationType, typename NodeType = uint32_t>
 class direct_enumerator_partial_dag {
 public:
-  direct_enumerator_partial_dag( const std::vector<enumeration_symbol<EnumerationType>>& symbols, std::function<void(std::optional<EnumerationType>)> use_formula_callback)
+  direct_enumerator_partial_dag( const std::vector<enumeration_symbol<EnumerationType, NodeType>>& symbols, std::function<void(std::optional<EnumerationType>)> use_formula_callback = nullptr)
   : _symbols{ symbols }
   , _use_formula_callback{ use_formula_callback }
   {
@@ -50,7 +50,7 @@ public:
         bool break_point = true;
       }
 
-      if (!formula_is_duplicate()) {
+      if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
         _use_formula_callback(to_enumeration_type());
       }
 
@@ -75,7 +75,7 @@ public:
         bool break_point = true;
       }
 
-      if (!formula_is_duplicate()) {
+      if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
         _use_formula_callback(to_enumeration_type());
       }
 
@@ -271,6 +271,32 @@ protected:
     }
   }
 
+  bool current_assignment_inside_grammar()
+  {
+    auto vertices = _dags[_current_dag].get_vertices();
+
+    for (int index = vertices.size() - 1; index >= 0; index--) {
+      auto vertex = vertices[index];
+      auto possible_children = _symbols[*(_current_assignments[index])].children;
+      for (const auto& child : vertex) {
+        if (child == 0) {
+          continue;
+        }
+
+        auto result = std::find_if(possible_children.begin(), possible_children.end(), [&](NodeType type){
+          return _symbols[*(_current_assignments[child - 1])].type == type;
+        });
+
+        if (result == possible_children.end()) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+
   void increase_stack()
   {
     bool increase_flag = false;
@@ -326,7 +352,7 @@ protected:
   std::size_t _current_dag = 0;
   std::vector<percy::partial_dag> _dags;
   std::vector<std::vector<unsigned>> _possible_assignments;
-  const symbol_collection<EnumerationType> _symbols;
+  const symbols_collection<EnumerationType, NodeType> _symbols;
 };
 
 template<typename EnumerationType>

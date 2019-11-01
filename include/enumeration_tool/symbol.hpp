@@ -48,7 +48,8 @@ public:
     }
   }
 
-  [[nodiscard]] bool is_set( uint32_t flag ) const {
+  [[nodiscard]]
+  bool is_set( uint32_t flag ) const {
     return ( ( attributes & flag ) == flag );
   }
 
@@ -60,13 +61,14 @@ protected:
   uint32_t attributes = 0;
 };
 
-template <typename EnumerationType>
+template <typename EnumerationType, typename NodeType = uint32_t>
 class enumeration_symbol {
 public:
   using enumeration_symbol_pointer = int;
 
+  NodeType type;
+  std::vector<NodeType> children;
   uint32_t num_children = 0;
-  std::vector<enumeration_symbol_pointer> children;
   int32_t cost = 1;
   std::function<EnumerationType(const std::vector<EnumerationType>&)> constructor_callback;
   enumeration_attributes attributes;
@@ -81,19 +83,22 @@ public:
   virtual std::vector<NodeType> get_variable_node_types() = 0;
   virtual callback_fn get_constructor_callback(NodeType t) = 0;
   virtual callback_fn get_variable_callback(EnumerationType e) = 0;
+  virtual auto get_possible_children(NodeType t) -> std::vector<NodeType> = 0;
   virtual uint32_t get_num_children(NodeType t) = 0;
   virtual void foreach_variable(std::function<bool(EnumerationType)>&& fn) const = 0;
   virtual int32_t get_node_cost(NodeType t) = 0;
   virtual enumeration_attributes get_enumeration_attributes(NodeType t) { return {}; }
 
-  auto build_symbols() -> std::vector<enumeration_symbol<EnumerationType>>
+  auto build_symbols() -> std::vector<enumeration_symbol<EnumerationType, NodeType>>
   {
-    std::vector<enumeration_symbol<EnumerationType>> symbols;
+    std::vector<enumeration_symbol<EnumerationType, NodeType>> symbols;
 
     auto node_types = get_node_types();
     for (const auto& element : node_types)
     {
-      enumeration_symbol<EnumerationType> symbol;
+      enumeration_symbol<EnumerationType, NodeType> symbol;
+      symbol.type = element;
+      symbol.children = get_possible_children(element);
       symbol.num_children = get_num_children(element);
       symbol.constructor_callback = get_constructor_callback(element);
       symbol.attributes = get_enumeration_attributes(element);
@@ -104,7 +109,9 @@ public:
     assert(variable_node_types.size() == 1);
     for (const auto& element : variable_node_types) {
       foreach_variable([&](EnumerationType e){
-        enumeration_symbol<EnumerationType> symbol;
+        enumeration_symbol<EnumerationType, NodeType> symbol;
+        symbol.type = element;
+        symbol.children = get_possible_children(element);
         symbol.num_children = get_num_children(element);
         symbol.constructor_callback = get_variable_callback(e);
         symbols.emplace_back(symbol);
@@ -116,25 +123,31 @@ public:
   }
 };
 
-template <typename EnumerationType>
-class symbol_collection {
-  using nodes_collection_t = std::vector<enumeration_symbol<EnumerationType>>;
-  using variables_collection_t = std::vector<enumeration_symbol<EnumerationType>>;
+template <typename EnumerationType, typename NodeType = uint32_t>
+class symbols_collection
+{
+  using nodes_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType>>;
+  using variables_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType>>;
 
   nodes_collection_t nodes;
   variables_collection_t variables;
   unsigned long max_cardinality = 0;
 
 public:
-  explicit symbol_collection(const std::vector<enumeration_symbol<EnumerationType>>& symbols) {
+  explicit symbols_collection(const std::vector<enumeration_symbol<EnumerationType, NodeType>>& symbols) {
     for (int i = 0; i < symbols.size(); i++) {
-      if (max_cardinality < symbols[i].num_children) max_cardinality = symbols[i].num_children;
-      if (symbols[i].num_children == 0) variables.emplace_back(symbols[i]);
-      else nodes.emplace_back(symbols[i]);
+      if (max_cardinality < symbols[i].num_children) {
+        max_cardinality = symbols[i].num_children;
+      }
+      if (symbols[i].num_children == 0) {
+        variables.emplace_back(symbols[i]);
+      } else {
+        nodes.emplace_back(symbols[i]);
+      }
     }
   }
 
-  const enumeration_symbol<EnumerationType>& operator[](std::size_t index) const {
+  const enumeration_symbol<EnumerationType, NodeType>& operator[](std::size_t index) const {
     if (index < nodes.size())
     {
       return nodes[index];
@@ -170,7 +183,9 @@ public:
     static std::vector<unsigned> nodes_indexes;
     if (nodes_indexes.empty()) {
       for (auto i = 0ul; i < nodes.size(); i++) {
-        if (nodes[i].num_children == 2) nodes_indexes.emplace_back(i);
+        if (nodes[i].num_children == 2) {
+          nodes_indexes.emplace_back(i);
+        }
       }
     }
     return nodes_indexes;

@@ -21,7 +21,7 @@ int main() {
     store.use_formula(std::move(formula));
   };
 
-  enumeration_tool::direct_enumerator_partial_dag<ltl_enumeration_store::ltl_formula> en(store.build_symbols(), use_formula);
+  enumeration_tool::direct_enumerator_partial_dag<ltl_enumeration_store::ltl_formula, EnumerationNodeType> en(store.build_symbols(), use_formula);
 
   en.enumerate(5);
   store.print_statistics();
