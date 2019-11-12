@@ -29,7 +29,7 @@
   \author Winston Haaswijk
 */
 
-#include <percy/partial_dag.hpp>
+#include "partial_dag.hpp"
 
 namespace percy
 {
@@ -565,6 +565,46 @@ inline std::vector<partial_dag> pd3_generate_max(int max_vertices, int nr_in)
     }
 
     return dags;
+}
+
+inline std::vector<partial_dag> trees3_generate_filtered(int max_vertices, int nr_in)
+{
+  partial_dag g;
+  partial_dag3_generator gen;
+  std::vector<partial_dag> dags;
+
+  gen.set_callback([&g, &dags, nr_in]
+                     (partial_dag3_generator* gen) {
+    for (int i = 0; i < gen->nr_vertices(); i++) {
+      g.set_vertex(i, gen->_js[i], gen->_ks[i], gen->_ls[i]);
+    }
+    if (g.nr_pi_fanins() >= nr_in) {
+      dags.push_back(g);
+    }
+  });
+
+  for (int i = 1; i <= max_vertices; i++) {
+    g.reset(3, i);
+    gen.reset(i);
+    gen.count_dags();
+  }
+
+  // delete DAG if it is not a tree (each node has a unique parent node)
+  dags.erase(std::remove_if(dags.begin(), dags.end(),[](const auto& item) {
+    std::vector<int> edge_count(item.nr_vertices(), 0);
+    item.foreach_vertex([&](const std::vector<int>& node, int index){
+      for (const auto &child : node) {
+        edge_count[child]++;
+      }
+    });
+    edge_count.erase(edge_count.begin());
+    for (const auto &count : edge_count) {
+      if (count > 1) return true;
+    }
+    return false;
+  }), dags.end());
+
+  return dags;
 }
 
 inline std::vector<partial_dag> pd3_generate_filtered(int max_vertices, int nr_in)
