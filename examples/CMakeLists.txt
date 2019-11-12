@@ -15,3 +15,12 @@ target_link_libraries(partial_dag_test enumeration_tool kitty nauty fmt copycat)
 
 add_executable(partial_enumeration partial_enumeration.cpp)
 target_link_libraries(partial_enumeration enumeration_tool kitty nauty fmt copycat)
+
+add_executable(aig aig.cpp)
+target_link_libraries(aig enumeration_tool mockturtle)
+
+add_executable(maj5 maj5.cpp)
+target_link_libraries(maj5 enumeration_tool mockturtle)
+
+add_executable(experiments experiments.cpp)
+target_link_libraries(experiments enumeration_tool mockturtle)
