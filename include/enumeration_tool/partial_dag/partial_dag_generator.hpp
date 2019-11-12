@@ -50,11 +50,11 @@ private:
 
     // Array indicating which steps have been covered. (And how many
     // times.) 
-    std::array<int, 18> _covered_steps;
+    int _covered_steps[18];
 
     // Array indicating which steps are "disabled", meaning that
     // selecting them will not result in a valid DAG.
-    std::array<std::array<std::array<int, 18>, 18>, 18> _disabled_matrix;
+    int _disabled_matrix[18][18][18];
 
     partial_gen_type _gen_type = GEN_NOREAPPLY;
 
@@ -73,8 +73,8 @@ public:
     }
 
     // Two arrays that represent the "stack" of selected steps.
-    std::array<int, 18> _js;
-    std::array<int, 18> _ks;
+    int _js[18];
+    int _ks[18];
 
     // The level from which the search is assumed to have started
     int _start_level = 1;
@@ -99,7 +99,7 @@ public:
 
     void clear_callback()
     {
-        _callback = {};
+        _callback = 0;
     }
 
     void reset(int nr_vertices)
@@ -681,8 +681,7 @@ inline std::vector<partial_dag> trees_generate_filtered(int max_vertices, int nr
   partial_dag_generator gen;
   std::vector<partial_dag> dags;
 
-  gen.set_callback([&g, &dags, nr_in]
-                       (partial_dag_generator* gen) {
+  gen.set_callback([&g, &dags, nr_in] (partial_dag_generator* gen) {
     for (int i = 0; i < gen->nr_vertices(); i++) {
       g.set_vertex(i, gen->_js[i], gen->_ks[i]);
     }
@@ -698,21 +697,19 @@ inline std::vector<partial_dag> trees_generate_filtered(int max_vertices, int nr
   }
 
   // delete DAG if it is not a tree (each node has a unique parent node)
-  dags.erase(std::remove_if(dags.begin(), dags.end(),
-              [](const auto& item) {
-                std::vector<int> edge_count(item.nr_vertices(), 0);
-                item.foreach_vertex([&](const std::vector<int>& node, int index){
-                  for (const auto &child : node) {
-                    edge_count[child]++;
-                  }
-                });
-                edge_count.erase(edge_count.begin());
-                for (const auto &count : edge_count) {
-                  if (count > 1) return true;
-                }
-                return false;
-              }),
-             dags.end());
+  dags.erase(std::remove_if(dags.begin(), dags.end(),[](const auto& item) {
+    std::vector<int> edge_count(item.nr_vertices(), 0);
+    item.foreach_vertex([&](const std::vector<int>& node, int index){
+      for (const auto &child : node) {
+        edge_count[child]++;
+      }
+    });
+    edge_count.erase(edge_count.begin());
+    for (const auto &count : edge_count) {
+      if (count > 1) return true;
+    }
+    return false;
+  }), dags.end());
 
   return dags;
 }
