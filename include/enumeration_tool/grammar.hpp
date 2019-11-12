@@ -112,6 +112,7 @@ public:
   [[nodiscard]]
   bool empty() const { return nodes.empty(); }
 
-  std::size_t size() { return nodes.size(); }
+  [[nodiscard]]
+  std::size_t size() const { return nodes.size(); }
 
 };
