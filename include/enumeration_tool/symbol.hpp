@@ -23,11 +23,19 @@
 
 #pragma once
 
-#include <vector>
-#include <string>
-#include <optional>
+#include <cassert>
 #include <functional>
+#include <memory>
 #include <numeric>
+#include <optional>
+#include <string>
+#include <vector>
+
+template <typename EnumerationType, typename NodeType, typename SymbolType>
+class grammar;
+
+template <typename EnumerationType, typename NodeType, typename SymbolType>
+class enumeration_interface;
 
 class enumeration_attributes {
 public:
@@ -61,154 +69,57 @@ protected:
   uint32_t attributes = 0;
 };
 
-template <typename EnumerationType, typename NodeType = uint32_t>
-class enumeration_symbol {
+template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
+class enumeration_symbol { // this is the node
 public:
-  using enumeration_symbol_pointer = int;
 
-  NodeType type;
-  std::vector<NodeType> children;
+  bool _terminal_symbol = true;
+  SymbolType type;
+  std::vector<SymbolType> children;
   uint32_t num_children = 0;
   int32_t cost = 1;
-  std::function<EnumerationType(const std::vector<EnumerationType>&)> constructor_callback;
+  std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)> node_constructor;
   enumeration_attributes attributes;
 };
 
-template <typename EnumerationType, typename NodeType = uint32_t>
+template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class enumeration_interface {
 public:
-  using callback_fn = std::function<EnumerationType(const std::vector<EnumerationType>&)>;
+  std::shared_ptr<EnumerationType> _shared_object_store;
 
-  virtual std::vector<NodeType> get_node_types() = 0;
-  virtual std::vector<NodeType> get_variable_node_types() = 0;
-  virtual callback_fn get_constructor_callback(NodeType t) = 0;
-  virtual callback_fn get_variable_callback(EnumerationType e) = 0;
-  virtual auto get_possible_children(NodeType t) -> std::vector<NodeType> = 0;
-  virtual uint32_t get_num_children(NodeType t) = 0;
-  virtual void foreach_variable(std::function<bool(EnumerationType)>&& fn) const = 0;
-  virtual int32_t get_node_cost(NodeType t) = 0;
-  virtual enumeration_attributes get_enumeration_attributes(NodeType t) { return {}; }
+  using node_callback_fn = std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
+  using output_callback_fn = std::function<void(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
 
-  auto build_symbols() -> std::vector<enumeration_symbol<EnumerationType, NodeType>>
+  virtual auto get_symbol_types() const -> std::vector<SymbolType> = 0;
+  virtual auto get_node_constructor(SymbolType t) -> node_callback_fn = 0;
+  virtual auto get_output_constructor() -> output_callback_fn = 0;
+  virtual auto get_possible_children(SymbolType t) const -> std::vector<SymbolType> = 0;
+  virtual auto get_possible_roots() const -> std::vector<SymbolType> = 0;
+  virtual uint32_t get_num_children(SymbolType t) const = 0;
+  virtual int32_t get_node_cost(SymbolType t) const = 0;
+  virtual enumeration_attributes get_enumeration_attributes(SymbolType) { return {}; }
+
+  void construct()
   {
-    std::vector<enumeration_symbol<EnumerationType, NodeType>> symbols;
+    _shared_object_store = std::make_shared<EnumerationType>();
+  }
 
-    auto node_types = get_node_types();
+  auto build_grammar() -> grammar<EnumerationType, NodeType, SymbolType>
+  {
+    std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>> symbols;
+
+    auto node_types = get_symbol_types();
     for (const auto& element : node_types)
     {
-      enumeration_symbol<EnumerationType, NodeType> symbol;
+      enumeration_symbol<EnumerationType, NodeType, SymbolType> symbol;
       symbol.type = element;
       symbol.children = get_possible_children(element);
       symbol.num_children = get_num_children(element);
-      symbol.constructor_callback = get_constructor_callback(element);
+      symbol.node_constructor = get_node_constructor(element);
       symbol.attributes = get_enumeration_attributes(element);
       symbols.emplace_back(symbol);
     }
 
-    auto variable_node_types = get_variable_node_types();
-    assert(variable_node_types.size() == 1);
-    for (const auto& element : variable_node_types) {
-      foreach_variable([&](EnumerationType e){
-        enumeration_symbol<EnumerationType, NodeType> symbol;
-        symbol.type = element;
-        symbol.children = get_possible_children(element);
-        symbol.num_children = get_num_children(element);
-        symbol.constructor_callback = get_variable_callback(e);
-        symbols.emplace_back(symbol);
-        return true;
-      });
-    }
-
-    return symbols;
+    return grammar<EnumerationType, NodeType, SymbolType>(symbols, get_possible_roots());
   }
-};
-
-template <typename EnumerationType, typename NodeType = uint32_t>
-class symbols_collection
-{
-  using nodes_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType>>;
-  using variables_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType>>;
-
-  nodes_collection_t nodes;
-  variables_collection_t variables;
-  unsigned long max_cardinality = 0;
-
-public:
-  explicit symbols_collection(const std::vector<enumeration_symbol<EnumerationType, NodeType>>& symbols) {
-    for (int i = 0; i < symbols.size(); i++) {
-      if (max_cardinality < symbols[i].num_children) {
-        max_cardinality = symbols[i].num_children;
-      }
-      if (symbols[i].num_children == 0) {
-        variables.emplace_back(symbols[i]);
-      } else {
-        nodes.emplace_back(symbols[i]);
-      }
-    }
-  }
-
-  const enumeration_symbol<EnumerationType, NodeType>& operator[](std::size_t index) const {
-    if (index < nodes.size())
-    {
-      return nodes[index];
-    }
-    else
-    {
-      return variables[index - nodes.size()];
-    }
-  }
-
-  [[nodiscard]]
-  typename variables_collection_t::size_type variables_number() const { return variables.size(); }
-  [[nodiscard]]
-  typename nodes_collection_t::size_type nodes_number() const { return nodes.size(); }
-
-  const nodes_collection_t& get_nodes() const { return nodes; }
-  const variables_collection_t& get_variables() const { return variables; }
-
-  [[nodiscard]]
-  const std::vector<unsigned>& get_nodes_indexes() const {
-    static std::vector<unsigned> nodes_indexes;
-    if (nodes_indexes.empty()) {
-      auto n = 0ul;
-      for(auto i = 0ul; i < nodes.size(); i++) {
-        nodes_indexes.emplace_back(n++);
-      }
-    }
-    return nodes_indexes;
-  }
-
-  [[nodiscard]]
-  const std::vector<unsigned>& get_max_cardinality_nodes_indexes() const {
-    static std::vector<unsigned> nodes_indexes;
-    if (nodes_indexes.empty()) {
-      for (auto i = 0ul; i < nodes.size(); i++) {
-        if (nodes[i].num_children == 2) {
-          nodes_indexes.emplace_back(i);
-        }
-      }
-    }
-    return nodes_indexes;
-  }
-
-  [[nodiscard]]
-  const std::vector<unsigned>& get_variables_indexes() const {
-    static std::vector<unsigned> variables_indexes;
-    if (variables_indexes.empty()) {
-      auto n = nodes.size();
-      for(auto i = 0ul; i < variables.size(); i++) {
-        variables_indexes.emplace_back(n++);
-      }
-    }
-    return variables_indexes;
-  }
-
-  [[nodiscard]]
-  unsigned int get_max_cardinality() const { return max_cardinality; }
-
-  [[nodiscard]]
-  bool empty() const { return size() == 0; }
-
-  std::size_t size() { return nodes.size() + variables.size(); }
-
 };

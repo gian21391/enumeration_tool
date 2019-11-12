@@ -23,69 +23,143 @@
 
 #pragma once
 
+#include "../utils.hpp"
 #include "../symbol.hpp"
+#include "../grammar.hpp"
+#include "../partial_dag/partial_dag3_generator.hpp"
 #include "../partial_dag/partial_dag_generator.hpp"
+#include "../partial_dag/partial_dag.hpp"
 
 namespace enumeration_tool {
 
-template<typename EnumerationType, typename NodeType = uint32_t>
+enum class Task {
+  Nothing, NextDag, NextAssignment, StopEnumeration
+};
+
+template<typename EnumerationType, typename NodeType, typename SymbolType>
+class direct_enumerator_partial_dag;
+
+template<typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class direct_enumerator_partial_dag {
 public:
-  direct_enumerator_partial_dag( const std::vector<enumeration_symbol<EnumerationType, NodeType>>& symbols, std::function<void(std::optional<EnumerationType>)> use_formula_callback = nullptr)
+  using callback_t = std::function<void(direct_enumerator_partial_dag<EnumerationType, NodeType, SymbolType>*, std::shared_ptr<EnumerationType>)>;
+
+  direct_enumerator_partial_dag( const grammar<EnumerationType, NodeType, SymbolType>& symbols, std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> interface, callback_t use_formula_callback = nullptr)
   : _symbols{ symbols }
+  , _interface{ interface }
   , _use_formula_callback{ use_formula_callback }
-  {
-    //TODO: check whether the class has the methods needed with static assertions
-  }
+  {}
 
-  void enumerate(unsigned max_cost) {
-    _dags = percy::trees_generate_filtered(static_cast<int>(max_cost), 1);
-
+  void enumerate_impl() {
     _current_dag = 0;
     initialize();
 
     while (_current_dag < _dags.size())
     {
-      if (_current_dag == 4) {
-        bool break_point = true;
+      if (_next_task == Task::NextDag) {
+        _next_task = Task::Nothing;
+        next_dag();
+        continue;
+      }
+      if (_next_task == Task::NextAssignment) {
+        _next_task = Task::Nothing;
+        increase_stack();
+        continue;
+      }
+      if (_next_task == Task::StopEnumeration) {
+        _next_task = Task::Nothing;
+        break;
       }
 
+//      if (_current_dag == 4) {
+//        bool break_point = true;
+//      }
+
       if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
-        _use_formula_callback(to_enumeration_type());
+        _use_formula_callback(this, to_enumeration_type());
       }
 
       increase_stack();
     }
+  }
 
+  void enumerate(unsigned max_cost) {
+    // TODO: read from the grammar the nr_in
+
+    auto nr_in = 3;
+    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), nr_in);
+    enumerate_impl();
   }
 
   void enumerate(unsigned min_cost, unsigned max_cost)
   {
-    _dags = percy::trees_generate_filtered(static_cast<int>(max_cost), 1);
+    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), 1);
     _dags.erase(std::remove_if(std::begin(_dags), std::end(_dags), [&](const percy::partial_dag& dag){
       return dag.nr_vertices() < min_cost;
     }), _dags.end());
 
-    _current_dag = 0;
-    initialize();
+    enumerate_impl();
+  }
 
-    while (_current_dag < _dags.size())
-    {
-      if (_current_dag == 4) {
-        bool break_point = true;
+  void enumerate_test(unsigned max_cost) {
+    // TODO: read from the grammar the nr_in
+
+    auto nr_in = 3;
+
+    percy::partial_dag g;
+    percy::partial_dag3_generator gen;
+
+    gen.set_callback([&] (percy::partial_dag3_generator* gen) {
+      for (int i = 0; i < gen->nr_vertices(); i++) {
+        g.set_vertex(i, gen->_js[i], gen->_ks[i], gen->_ls[i]);
       }
 
-      if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
-        _use_formula_callback(to_enumeration_type());
-      }
+      if (g.nr_pi_fanins() >= nr_in) {
+        _dags.clear();
+        _dags.push_back(g);
+        _current_dag = 0;
+        initialize();
 
-      increase_stack();
+        while (_current_dag < _dags.size())
+        {
+          if (_next_task == Task::NextDag) {
+            _next_task = Task::Nothing;
+            return;
+          }
+          if (_next_task == Task::NextAssignment) {
+            _next_task = Task::Nothing;
+            if (!increase_stack_test()) { return; }
+            continue;
+          }
+          if (_next_task == Task::StopEnumeration) {
+            _next_task = Task::Nothing;
+            break;
+          }
+
+          if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
+            _use_formula_callback(this, to_enumeration_type());
+          }
+
+          if (!increase_stack_test()) { return; }
+        }
+
+      }
+    });
+
+    for (int i = 1; i <= max_cost; i++) {
+      g.reset(3, i);
+      gen.reset(i);
+      gen.count_dags();
     }
+  }
+
+  void set_next_task(Task t) {
+    _next_task = t;
   }
 
 protected:
 
-  void create_node(std::unordered_map<unsigned, EnumerationType>& sub_components, std::vector<int> node, int index) {
+  void create_node(std::unordered_map<unsigned, NodeType>& sub_components, std::vector<int> node, int index) {
     if (sub_components.find(index) != sub_components.end()) { // the element has already been created
       return;
     }
@@ -107,18 +181,25 @@ protected:
     });
 
     if (non_zero_nodes.empty()) { // end node
-      auto formula = _symbols[*(_current_assignments[index])].constructor_callback({});
+      auto formula = _symbols[*(_current_assignments[index])].node_constructor(_interface->_shared_object_store, {});
       sub_components.emplace(index, formula);
     }
     else if (non_zero_nodes.size() == 1) {
       auto child = sub_components.find(non_zero_nodes[0] - 1);
-      auto formula = _symbols[*(_current_assignments[index])].constructor_callback({(*child).second});
+      auto formula = _symbols[*(_current_assignments[index])].node_constructor(_interface->_shared_object_store, {(*child).second});
       sub_components.emplace(index, formula);
     }
     else if (non_zero_nodes.size() == 2) {
       auto child0 = sub_components.find(non_zero_nodes[0] - 1);
       auto child1 = sub_components.find(non_zero_nodes[1] - 1);
-      auto formula = _symbols[*(_current_assignments[index])].constructor_callback({(*child0).second, (*child1).second});
+      auto formula = _symbols[*(_current_assignments[index])].node_constructor(_interface->_shared_object_store, {(*child0).second, (*child1).second});
+      sub_components.emplace(index, formula);
+    }
+    else if (non_zero_nodes.size() == 3) {
+      auto child0 = sub_components.find(non_zero_nodes[0] - 1);
+      auto child1 = sub_components.find(non_zero_nodes[1] - 1);
+      auto child2 = sub_components.find(non_zero_nodes[2] - 1);
+      auto formula = _symbols[*(_current_assignments[index])].node_constructor(_interface->_shared_object_store, {(*child0).second, (*child1).second, (*child2).second});
       sub_components.emplace(index, formula);
     } else {
       throw std::runtime_error("Number of children of this node not supported in to_enumeration_type");
@@ -126,9 +207,10 @@ protected:
 
   }
 
-  auto to_enumeration_type() -> std::optional<EnumerationType>
+  auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
   {
-    std::unordered_map<unsigned, EnumerationType> sub_components;
+    _interface->construct();
+    std::unordered_map<unsigned, NodeType> sub_components;
 
     _dags[_current_dag].foreach_vertex_dfs([&](const std::vector<int>& node, int index){
       if (sub_components.find(index) != sub_components.end()) { // the element has already been created
@@ -141,10 +223,11 @@ protected:
     auto head = sub_components.find(_dags[_current_dag].get_last_vertex_index());
 
     if (head != sub_components.end()) {
-      return (*head).second;
+      auto output_constructor = _interface->get_output_constructor();
+      output_constructor(_interface->_shared_object_store, {(*head).second});
     }
 
-    return std::nullopt;
+    return _interface->_shared_object_store;
   }
 
   bool formula_is_duplicate()
@@ -163,15 +246,14 @@ protected:
       }
 
       if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::commutative)) {
-        std::vector<int> children;
-        std::for_each(node.begin(), node.end(), [&](int input){ if (input != 0) { children.emplace_back(input); }});
-        assert(children.size() == 2); // only a children containing 2 children can be commutative
-        auto child0 = *(_current_assignments[children[0]]);
-        auto child1 = *(_current_assignments[children[1]]);
-        if (child0 < child1) {
-          duplicated = true;
-          return;
-        }
+//        std::vector<int> children;
+//        std::for_each(node.begin(), node.end(), [&](int input){ if (input != 0) { children.emplace_back(input); }});
+//        auto child0 = *(_current_assignments[children[0]]);
+//        auto child1 = *(_current_assignments[children[1]]);
+//        if (child0 < child1) {
+//          duplicated = true;
+//          return;
+//        }
 
         // chain of commutatives
         auto chain = get_chain_of_same_operator(index);
@@ -238,36 +320,37 @@ protected:
     _dags[_current_dag].initialize_dfs_sequence();
 
     // initialize the possible assignments
-    unsigned current_node = 0;
-    _dags[_current_dag].foreach_vertex([&](const std::vector<int>& node, int index) {
+    _dags[_current_dag].foreach_vertex([&](const std::vector<int>& node, int  index) {
       _possible_assignments.emplace_back();
       auto nr_of_children = std::count_if(node.begin(), node.end(), [](int i){ return i > 0; });
 
-      if (nr_of_children == 0) {
-        // variable
-        auto variables = _symbols.get_variables_indexes();
-        _possible_assignments[current_node].insert(_possible_assignments[current_node].end(), variables.begin(), variables.end());
-        current_node++;
-      }
-      else if (nr_of_children == node.size()) {
-        auto max_cardinality_nodes = _symbols.get_max_cardinality_nodes_indexes();
-        _possible_assignments[current_node].insert(_possible_assignments[current_node].end(), max_cardinality_nodes.begin(), max_cardinality_nodes.end());
-        current_node++;
-      }
-      else {
-        auto nodes = _symbols.get_nodes_indexes();
-        _possible_assignments[current_node].insert(_possible_assignments[current_node].end(), nodes.begin(), nodes.end());
-        // remove nodes with wrong number of children
-        _possible_assignments[current_node].erase(
-          std::remove_if(_possible_assignments[current_node].begin(), _possible_assignments[current_node].end(), [&](unsigned index){ return _symbols[index].num_children != nr_of_children; }),
-          _possible_assignments[current_node].end()
-        );
-        current_node++;
-      }
+      auto nodes = _symbols.get_nodes_indexes(nr_of_children);
+      _possible_assignments[index].insert(_possible_assignments[index].end(), nodes.begin(), nodes.end());
     });
+
+    auto head_index = _dags[_current_dag].get_last_vertex_index();
+    auto possible_roots = _symbols.get_root_nodes_indexes();
+    _possible_assignments[head_index].erase(
+      std::remove_if(std::begin(_possible_assignments[head_index]), std::end(_possible_assignments[head_index]), [&](unsigned i){
+        for (const auto& item : possible_roots) {
+          if (i != item) {
+            return true;
+          }
+        }
+        return false;
+      }),
+      _possible_assignments[head_index].end()
+    );
 
     for (const auto& assignment : _possible_assignments) {
       _current_assignments.emplace_back(assignment.begin());
+    }
+
+    for (const auto& possible_assignment : _possible_assignments) {
+      if (possible_assignment.empty()) { // this structure doesn't support the current grammar
+        _next_task = Task::NextDag;
+        break;
+      }
     }
   }
 
@@ -283,7 +366,7 @@ protected:
           continue;
         }
 
-        auto result = std::find_if(possible_children.begin(), possible_children.end(), [&](NodeType type){
+        auto result = std::find_if(possible_children.begin(), possible_children.end(), [&](SymbolType type){
           return _symbols[*(_current_assignments[child - 1])].type == type;
         });
 
@@ -296,6 +379,21 @@ protected:
     return true;
   }
 
+  bool increase_stack_test() // this function returns true if it was possible to increase the stack
+  {
+    bool increase_flag = false;
+
+    for (auto i = 0ul; i < _possible_assignments.size(); i++) {
+      if (++_current_assignments[i] == _possible_assignments[i].end()) {
+        _current_assignments[i] = _possible_assignments[i].begin();
+      } else {
+        increase_flag = true;
+        break;
+      }
+    }
+
+    return increase_flag;
+  }
 
   void increase_stack()
   {
@@ -311,10 +409,15 @@ protected:
     }
 
     if (!increase_flag) {
-      _current_dag++;
-      if (_current_dag < _dags.size()) {
-        initialize();
-      }
+      next_dag();
+    }
+  }
+
+  void next_dag()
+  {
+    _current_dag++;
+    if (_current_dag < _dags.size()) {
+      initialize();
     }
   }
 
@@ -347,19 +450,21 @@ protected:
     });
   }
 
-  std::function<void(std::optional<EnumerationType>)> _use_formula_callback;
+  callback_t _use_formula_callback;
   std::vector<std::vector<unsigned>::const_iterator> _current_assignments;
   std::size_t _current_dag = 0;
   std::vector<percy::partial_dag> _dags;
   std::vector<std::vector<unsigned>> _possible_assignments;
-  const symbols_collection<EnumerationType, NodeType> _symbols;
+  const grammar<EnumerationType, NodeType, SymbolType> _symbols;
+  std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
+  Task _next_task = Task::Nothing;
 };
 
-template<typename EnumerationType>
-class enumerator<EnumerationType, direct_enumerator_partial_dag<EnumerationType>> : public direct_enumerator_partial_dag<EnumerationType> {
-public:
-  explicit enumerator( const std::vector<enumeration_symbol<EnumerationType>>& s, std::function<void(std::optional<EnumerationType>)> use_formula )
-  : direct_enumerator_partial_dag<EnumerationType>(s, use_formula) {}
-};
+//template<typename EnumerationType>
+//class enumerator<EnumerationType, direct_enumerator_partial_dag<EnumerationType>> : public direct_enumerator_partial_dag<EnumerationType> {
+//public:
+//  explicit enumerator( const std::vector<enumeration_symbol<EnumerationType>>& s, std::function<void(std::optional<EnumerationType>)> use_formula )
+//  : direct_enumerator_partial_dag<EnumerationType>(s, use_formula) {}
+//};
 
 }
