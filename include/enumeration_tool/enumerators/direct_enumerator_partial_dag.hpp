@@ -48,7 +48,16 @@ public:
   : _symbols{ symbols }
   , _interface{ interface }
   , _use_formula_callback{ use_formula_callback }
-  {}
+  {
+    _nr_in = _symbols.get_max_cardinality();
+    for (auto i = 0ul; i < _symbols.size(); i++) {
+      if (_symbols[i].num_children > 0) {
+        if (_symbols[i].num_children < _nr_in) {
+          _nr_in = _symbols[i].num_children;
+        }
+      }
+    }
+  }
 
   void enumerate_impl() {
     _current_dag = 0;
@@ -84,16 +93,13 @@ public:
   }
 
   void enumerate(unsigned max_cost) {
-    // TODO: read from the grammar the nr_in
-
-    auto nr_in = 3;
-    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), nr_in);
+    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), _nr_in);
     enumerate_impl();
   }
 
   void enumerate(unsigned min_cost, unsigned max_cost)
   {
-    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), 1);
+    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), _nr_in);
     _dags.erase(std::remove_if(std::begin(_dags), std::end(_dags), [&](const percy::partial_dag& dag){
       return dag.nr_vertices() < min_cost;
     }), _dags.end());
@@ -102,10 +108,6 @@ public:
   }
 
   void enumerate_test(unsigned max_cost) {
-    // TODO: read from the grammar the nr_in
-
-    auto nr_in = 3;
-
     percy::partial_dag g;
     percy::partial_dag3_generator gen;
 
@@ -114,7 +116,7 @@ public:
         g.set_vertex(i, gen->_js[i], gen->_ks[i], gen->_ls[i]);
       }
 
-      if (g.nr_pi_fanins() >= nr_in) {
+      if (g.nr_pi_fanins() >= _nr_in) {
         _dags.clear();
         _dags.push_back(g);
         _current_dag = 0;
@@ -270,7 +272,7 @@ protected:
         auto subtree0 = get_subtree(node[0] - 1);
         auto subtree1 = get_subtree(node[1] - 1);
 
-        if (subtree0 == subtree1) {
+        if (!subtree0.empty() && !subtree1.empty() && subtree0 == subtree1) {
           duplicated = true;
           return;
         }
@@ -294,6 +296,9 @@ protected:
   auto get_subtree( int starting_index ) -> std::vector<int>
   {
     std::vector<int> subtree;
+    if (starting_index < 1) {
+      return subtree;
+    }
     subtree.emplace_back(*(_current_assignments[starting_index]));
     auto node = _dags[_current_dag].get_vertex(starting_index);
     std::for_each(std::begin(node), std::end(node), [&](int input){
@@ -426,11 +431,12 @@ protected:
     auto op = *(_current_assignments[starting_index]);
     auto starting_node = _dags[_current_dag].get_vertex(starting_index);
     std::for_each(starting_node.begin(), starting_node.end(), [&](int child){
-      if (op == *(_current_assignments[child - 1])) {
-        get_chain_of_same_operator(child - 1, chain);
-      }
-      else {
-        chain.emplace_back(child - 1);
+      if (child > 0) {
+        if (op == *(_current_assignments[child - 1])) {
+          get_chain_of_same_operator(child - 1, chain);
+        } else {
+          chain.emplace_back(child - 1);
+        }
       }
     });
 
@@ -441,11 +447,12 @@ protected:
     auto op = *(_current_assignments[starting_index]);
     auto starting_node = _dags[_current_dag].get_vertex(starting_index);
     std::for_each(starting_node.begin(), starting_node.end(), [&](int child){
-      if (op == *(_current_assignments[child - 1])) {
-        get_chain_of_same_operator(child - 1, chain);
-      }
-      else {
-        chain.emplace_back(child - 1);
+      if (child > 0) {
+        if (op == *(_current_assignments[child - 1])) {
+          get_chain_of_same_operator(child - 1, chain);
+        } else {
+          chain.emplace_back(child - 1);
+        }
       }
     });
   }
@@ -458,6 +465,7 @@ protected:
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
+  int _nr_in = 1;
 };
 
 //template<typename EnumerationType>
