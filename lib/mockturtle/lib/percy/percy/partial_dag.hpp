@@ -1,14 +1,12 @@
 #pragma once
 
-#include "spec.hpp"
-#include "tt_utils.hpp"
-
 #ifndef DISABLE_NAUTY
 #include <nauty.h>
 #endif
 #include <vector>
 #include <ostream>
 #include <set>
+#include "tt_utils.hpp"
 
 namespace percy
 {

@@ -17,10 +17,10 @@ if (NOT TARGET fmt)
   target_compile_definitions(fmt INTERFACE FMT_HEADER_ONLY)
 endif()
 
-#if (NOT TARGET kitty)
-#  add_library(kitty INTERFACE) # v0.4
-#  target_include_directories(kitty INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/kitty)
-#endif()
+if (NOT TARGET kitty)
+  add_library(kitty INTERFACE) # v0.4
+  target_include_directories(kitty INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/kitty)
+endif()
 
 if (NOT TARGET range)
   add_library(rang INTERFACE)
@@ -40,7 +40,7 @@ endif()
 
 if (NOT TARGET percy)
   add_library(percy INTERFACE) # >v0.1.2
-  target_include_directories(percy INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/percy)
+  target_include_directories(percy SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/percy)
   target_compile_definitions(percy INTERFACE DISABLE_NAUTY)
 
   set(THREADS_PREFER_PTHREAD_FLAG ON)
