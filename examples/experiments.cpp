@@ -8,6 +8,11 @@
 #include <mockturtle/networks/mig.hpp>
 #include <mockturtle/algorithms/miter.hpp>
 #include <mockturtle/algorithms/equivalence_checking.hpp>
+#include <mockturtle/io/write_dot.hpp>
+
+#include <mockturtle/algorithms/simulation.hpp>
+
+#include <kitty/kitty.hpp>
 
 auto get_maj5() {
   mockturtle::mig_network ntk;
@@ -68,6 +73,59 @@ int main() {
   if (!result.has_value()) throw std::runtime_error("Something wrong in the equivalence checking");
   if(result.value()) std::cout << "YES" << std::endl;
   else std::cout << "NO" << std::endl;
+
+  auto constexpr num_vars = 4;
+  using truth_table = kitty::static_truth_table<num_vars>;
+
+  mockturtle::default_simulator<truth_table> sim;
+  const auto tts = mockturtle::simulate<truth_table>( maj5, sim );
+
+  std::unordered_set<std::string> classes_found;
+
+  maj5.foreach_po( [&]( auto const&, auto i ) {
+    std::cout << fmt::format( "truth table of output {} is {}\n", i, kitty::to_hex( tts[i] ) );
+    const auto res = kitty::exact_npn_canonization( tts[i] );
+    std::cout << fmt::format( "truth table of output {} after canonicalization is {}\n", i, kitty::to_hex( std::get<0>(res) ) );
+    classes_found.insert(kitty::to_hex( std::get<0>(res) ));
+  } );
+
+  std::cout << "Experiment!\n";
+
+  mockturtle::mig_network ntk1;
+  auto a = ntk1.create_pi("a");
+  auto b = ntk1.create_pi("b");
+  auto c = ntk1.create_pi("c");
+  auto f = ntk1.get_constant(false);
+  auto gate = ntk1.create_maj(c, a, b);
+  ntk1.create_po(gate);
+  const auto tts_ntk1 = mockturtle::simulate<truth_table>( ntk1, sim );
+
+  ntk1.foreach_po( [&]( auto const&, auto i ) {
+    const auto res = kitty::exact_npn_canonization( tts_ntk1[i] );
+    std::cout << fmt::format( "truth table of output {} after canonicalization is {}\n", i, kitty::to_hex( std::get<0>(res) ) );
+  } );
+
+//  mockturtle::mig_network ntk2;
+//  auto b = ntk2.create_pi("b");
+//  ntk2.create_po(!b);
+//  const auto tts_ntk2 = mockturtle::simulate<truth_table>( ntk2, sim );
+//
+//  mockturtle::mig_network ntk3;
+//  auto c = ntk3.get_constant(true);
+//  ntk3.create_po(c);
+//  const auto tts_ntk3 = mockturtle::simulate<truth_table>( ntk3, sim );
+//
+//  ntk2.foreach_po( [&]( auto const&, auto i ) {
+//    const auto res = kitty::exact_npn_canonization( tts_ntk2[i] );
+//    std::cout << fmt::format( "truth table of output {} after canonicalization is {}\n", i, kitty::to_hex( std::get<0>(res) ) );
+//  } );
+//
+//  ntk3.foreach_po( [&]( auto const&, auto i ) {
+//    const auto res = kitty::exact_npn_canonization( tts_ntk3[i] );
+//    std::cout << fmt::format( "truth table of output {} after canonicalization is {}\n", i, kitty::to_hex( std::get<0>(res) ) );
+//  } );
+
+
 
   return 0;
 }

@@ -1,6 +1,25 @@
-//
-// Created by Gianluca on 08/11/2019.
-//
+/* MIT License
+ *
+ * Copyright (c) 2019 Gianluca Martino
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 
 #include "maj5.hpp"
 #include <mockturtle/algorithms/miter.hpp>
@@ -34,7 +53,7 @@ auto get_maj5() {
 
 int main()
 {
-  mig_enumeration_interface store;
+  npn4_enumeration_interface store;
 
   auto num_formula = 0;
 
@@ -48,20 +67,21 @@ int main()
       auto result = mockturtle::equivalence_checking(miter.value());
       if (result.has_value() && result.value()) {
         std::cout << "Found!!" << std::endl;
+        std::cout << enumerator->get_current_solution() << std::endl;
         throw std::runtime_error("Solution found! Stop everything!");
       }
     }
 
   };
 
-  auto mig_interface = std::make_shared<mig_enumeration_interface>();
+  auto mig_interface = std::make_shared<npn4_enumeration_interface>();
   auto generic_interface = std::static_pointer_cast<enumeration_interface<mockturtle::mig_network, mockturtle::mig_network::signal, EnumerationSymbolsMaj3>>(mig_interface);
 
   enumeration_tool::direct_enumerator_partial_dag<mockturtle::mig_network, mockturtle::mig_network::signal, EnumerationSymbolsMaj3> en(store.build_grammar(), generic_interface, use_formula);
 
   auto duration = measure<>::execution([&](){
     try {
-      en.enumerate(9);
+      en.enumerate_test(9);
     }
     catch (const std::runtime_error& e)
     {

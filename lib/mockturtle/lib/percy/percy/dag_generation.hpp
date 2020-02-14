@@ -1,12 +1,15 @@
 #pragma once
 
 #include "dag.hpp"
-#include <thread>
-#include <functional>
-#include <mutex>
 #include "tt_utils.hpp"
 #include "concurrentqueue.h"
 #include "solvers.hpp"
+#include "spec.hpp"
+#include "chain.hpp"
+
+#include <thread>
+#include <functional>
+#include <mutex>
 #include <vector>
 
 #pragma GCC diagnostic push

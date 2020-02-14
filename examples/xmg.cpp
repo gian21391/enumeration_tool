@@ -31,16 +31,16 @@
 
 /*
 
-enum class EnumerationNodeType {
+enum class EnumerationSymbols {
   Constant, Var, Not, And, X, G, F, U
 };
 
-class xmg_enumeration_store : public enumeration_interface<mockturtle::xmg_network::signal, EnumerationNodeType>, public mockturtle::xmg_network {
+class xmg_enumeration_store : public enumeration_interface<mockturtle::xmg_network::signal, EnumerationSymbols>, public mockturtle::xmg_network {
 public:
-  using NodeType = EnumerationNodeType;
+  using NodeType = EnumerationSymbols;
   using EnumerationType = mockturtle::xmg_network::signal;
 
-  std::vector<NodeType> get_node_types() override {
+  std::vector<NodeType> get_symbol_types() override {
     return { NodeType::Constant, NodeType::Not, NodeType::X, NodeType::G, NodeType::F, NodeType::And, NodeType::U };
   }
 
@@ -48,7 +48,7 @@ public:
     return { NodeType::Var };
   }
 
-  callback_fn get_constructor_callback(NodeType t) override {
+  node_callback_fn get_node_constructor(NodeType t) override {
     if (t == NodeType::Constant) { return [&]() -> EnumerationType { return get_constant(false); }; }
     if (t == NodeType::Not) { return [&](EnumerationType a) -> EnumerationType { return !a; }; }
     if (t == NodeType::X) { return [&](EnumerationType a) -> EnumerationType { return create_next(a); }; }
@@ -59,7 +59,7 @@ public:
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
-  callback_fn get_variable_callback(EnumerationType e) override {
+  node_callback_fn get_variable_callback(EnumerationType e) override {
     return [e](){ return e; };
   }
 
@@ -103,7 +103,7 @@ public:
   using formula_t = store_t::signal;
 
   explicit xmg_enumerator(store_t& s, std::unordered_map<uint32_t, std::string>& v)
-    : enumerator{s.build_symbols()}, variable_names{v}, store{s} {}
+    : enumerator{s.build_grammar()}, variable_names{v}, store{s} {}
 
   void use_formula() override {
     for (const auto& element : stack) {

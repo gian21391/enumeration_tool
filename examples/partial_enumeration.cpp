@@ -2,9 +2,12 @@
 // Created by Gianluca on 12/10/2019.
 //
 
+#include <utility>
+#include <sstream>
+
 #include "partial_enumeration.hpp"
 
-#include <utility>
+
 
 int main() {
   std::unordered_map<uint32_t, std::string> variable_names;
@@ -21,7 +24,7 @@ int main() {
     store.use_formula(std::move(formula));
   };
 
-  enumeration_tool::direct_enumerator_partial_dag<ltl_enumeration_store::ltl_formula, EnumerationNodeType> en(store.build_symbols(), use_formula);
+  enumeration_tool::direct_enumerator_partial_dag<ltl_enumeration_store::ltl_formula, EnumerationSymbols> en(store.build_grammar(), use_formula);
 
   en.enumerate(5);
   store.print_statistics();

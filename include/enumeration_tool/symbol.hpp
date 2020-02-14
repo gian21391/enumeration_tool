@@ -43,7 +43,11 @@ public:
     no                    = 0,
     no_double_application = 1,
     idempotent            = 1 << 1,
-    commutative           = 1 << 2
+    commutative           = 1 << 2,
+    no_signal_repetition  = 1 << 3,
+    nary_idempotent       = 1 << 4,
+    nary_commutative      = 1 << 5,
+    same_gate_exists      = 1 << 6
   };
 
   enumeration_attributes() {
@@ -58,6 +62,7 @@ public:
 
   [[nodiscard]]
   bool is_set( uint32_t flag ) const {
+    auto value = attributes & flag;
     return ( ( attributes & flag ) == flag );
   }
 
@@ -72,13 +77,14 @@ protected:
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class enumeration_symbol { // this is the node
 public:
+  using constructor_callback_fn = std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
 
   bool _terminal_symbol = true;
   SymbolType type;
   std::vector<SymbolType> children;
   uint32_t num_children = 0;
   int32_t cost = 1;
-  std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)> node_constructor;
+  constructor_callback_fn node_constructor;
   enumeration_attributes attributes;
 };
 
@@ -98,6 +104,7 @@ public:
   virtual uint32_t get_num_children(SymbolType t) const = 0;
   virtual int32_t get_node_cost(SymbolType t) const = 0;
   virtual enumeration_attributes get_enumeration_attributes(SymbolType) { return {}; }
+  virtual auto symbol_type_to_string(SymbolType) -> std::string { return ""; }
 
   void construct()
   {

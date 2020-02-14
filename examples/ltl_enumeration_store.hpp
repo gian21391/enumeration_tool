@@ -26,7 +26,7 @@
 #include <copycat/ltl.hpp>
 #include <enumeration_tool/enumerator.hpp>
 
-enum class EnumerationNodeType
+enum class EnumerationSymbols
 {
   Constant,
   Var,
@@ -39,18 +39,18 @@ enum class EnumerationNodeType
 };
 
 class ltl_enumeration_store
-  : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationNodeType>
+  : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationSymbols>
   , public copycat::ltl_formula_store
 {
 public:
-  using NodeType = EnumerationNodeType;
+  using NodeType = EnumerationSymbols;
   using EnumerationType = copycat::ltl_formula_store::ltl_formula;
 
   std::vector<NodeType> get_node_types() override { return { /*NodeType::Constant,*/ NodeType::Not, NodeType::And, NodeType::G, NodeType::F, NodeType::X, NodeType::U }; }
 
   std::vector<NodeType> get_variable_node_types() override { return { NodeType::Var }; }
 
-  callback_fn get_constructor_callback(NodeType t) override
+  node_callback_fn get_constructor_callback(NodeType t) override
   {
     if (t == NodeType::Constant) {
       return [&]() -> EnumerationType { return get_constant(false); };
@@ -96,7 +96,7 @@ public:
     return {};
   }
 
-  callback_fn get_variable_callback(EnumerationType e) override
+  node_callback_fn get_variable_callback(EnumerationType e) override
   {
     return [e]() { return e; };
   }
@@ -152,7 +152,7 @@ public:
   using formula_t = store_t::ltl_formula;
 
   explicit ltl_enumerator(store_t& s, const std::unordered_map<uint32_t, std::string>& v)
-    : enumerator{ s.build_symbols() }
+    : enumerator{ s.build_grammar() }
     , variable_names{ v }
     , store{ s }
   {

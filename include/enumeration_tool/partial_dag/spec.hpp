@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <vector>
-#include "tt_utils.hpp"
+#include <percy/tt_utils.hpp>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include <kitty/kitty.hpp>

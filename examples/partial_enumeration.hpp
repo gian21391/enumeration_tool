@@ -24,12 +24,16 @@
 #pragma once
 
 #include <copycat/ltl.hpp>
-#include <enumeration_tool/enumerator.hpp>
+#include <enumeration_tool/grammar.hpp>
 
-enum class EnumerationNodeType
+enum class EnumerationSymbols
 {
-  Constant,
-  Var,
+  False,
+  A,
+  B,
+  C,
+  D,
+  E,
   Not,
   And,
   X,
@@ -38,134 +42,124 @@ enum class EnumerationNodeType
   U
 };
 
-class ltl_enumeration_store
-  : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationNodeType>
-  , public copycat::ltl_formula_store
+class ltl_enumeration_store : public enumeration_interface<copycat::ltl_formula_store, copycat::ltl_formula_store::ltl_formula, EnumerationSymbols>
 {
 public:
-  using NodeType = EnumerationNodeType;
-  using EnumerationType = copycat::ltl_formula_store::ltl_formula;
-  using store_t = ltl_enumeration_store;
-  using formula_t = store_t::ltl_formula;
+  using EnumerationType = copycat::ltl_formula_store;
+  using NodeType = copycat::ltl_formula_store::ltl_formula;
+  using SymbolType = EnumerationSymbols;
 
   ltl_enumeration_store(const std::unordered_map<uint32_t, std::string>& variable_names)
   : variable_names{variable_names}
   {}
 
-  std::vector<NodeType> get_node_types() override { return { /*NodeType::Constant,*/ NodeType::Not, NodeType::And, NodeType::G, NodeType::F, NodeType::X, NodeType::U }; }
+  std::vector<SymbolType> get_symbol_types() const override { return { SymbolType::False, SymbolType::A, SymbolType::B, SymbolType::C, SymbolType::D, SymbolType::E, SymbolType::Not, SymbolType::And, SymbolType::G, SymbolType::F, SymbolType::X, SymbolType::U }; }
 
-  std::vector<NodeType> get_variable_node_types() override { return { NodeType::Var }; }
-
-  callback_fn get_constructor_callback(NodeType t) override
+  node_callback_fn get_node_constructor(SymbolType t) override
   {
-    if (t == NodeType::Constant) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.empty()); return get_constant(false); };
+    if (t == SymbolType::False) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->get_constant(false); };
     }
-    if (t == NodeType::Not) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return !children[0]; };
+    if (t == SymbolType::A) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->create_variable(); };
     }
-    if (t == NodeType::X) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_next(children[0]); };
+    if (t == SymbolType::B) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->create_variable(); };
     }
-    if (t == NodeType::G) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_globally(children[0]); };
+    if (t == SymbolType::C) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->create_variable(); };
     }
-    if (t == NodeType::F) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_eventually(children[0]); };
+    if (t == SymbolType::D) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->create_variable(); };
     }
-    if (t == NodeType::And) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_and(children[0], children[1]); };
+    if (t == SymbolType::E) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); return store->create_variable(); };
     }
-    if (t == NodeType::U) {
-      return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_until(children[0], children[1]); };
+    if (t == SymbolType::Not) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 1); return !children[0]; };
+    }
+    if (t == SymbolType::X) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 1); return store->create_next(children[0]); };
+    }
+    if (t == SymbolType::G) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 1); return store->create_globally(children[0]); };
+    }
+    if (t == SymbolType::F) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 1); return store->create_eventually(children[0]); };
+    }
+    if (t == SymbolType::And) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 2); return store->create_and(children[0], children[1]); };
+    }
+    if (t == SymbolType::U) {
+      return [](std::shared_ptr<EnumerationType> store, const std::vector<NodeType>& children) -> NodeType { assert(children.size() == 2); return store->create_until(children[0], children[1]); };
     }
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
-  auto get_possible_children(NodeType t) -> std::vector<NodeType> override
+  auto get_possible_children(SymbolType t) const -> std::vector<SymbolType> override
   {
-    if (t == NodeType::Constant) {
+    if (t == SymbolType::False) {
       return {};
     }
-    if (t == NodeType::Var) {
+    if (t == SymbolType::A) {
       return {};
     }
-    if (t == NodeType::Not) {
-      return {NodeType::Var, NodeType::Constant};
+    if (t == SymbolType::Not) {
+      return {SymbolType::A, SymbolType::False};
     }
-    if (t == NodeType::X) {
+    if (t == SymbolType::X) {
       return {};
     }
-    if (t == NodeType::G) {
+    if (t == SymbolType::G) {
       return {};
     }
-    if (t == NodeType::F) {
+    if (t == SymbolType::F) {
       return {};
     }
-    if (t == NodeType::And) {
+    if (t == SymbolType::And) {
       return {};
     }
-    if (t == NodeType::U) {
+    if (t == SymbolType::U) {
       return {};
     }
-    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
+    return {};
   }
 
-  enumeration_attributes get_enumeration_attributes(NodeType t) override
+  enumeration_attributes get_enumeration_attributes(SymbolType t) override
   {
-    if (t == NodeType::Not) {
+    if (t == SymbolType::Not) {
       return { enumeration_attributes::no_double_application };
     }
-    if (t == NodeType::And) {
+    if (t == SymbolType::And) {
       return { enumeration_attributes::commutative, enumeration_attributes::idempotent };
     }
-    if (t == NodeType::G) {
+    if (t == SymbolType::G) {
       return { enumeration_attributes::no_double_application };
     }
-    if (t == NodeType::F) {
+    if (t == SymbolType::F) {
       return { enumeration_attributes::no_double_application };
     }
-    if (t == NodeType::U) {
+    if (t == SymbolType::U) {
       return { enumeration_attributes::idempotent };
     }
     return {};
   }
 
-  callback_fn get_variable_callback(EnumerationType e) override
+  uint32_t get_num_children(SymbolType t) const override
   {
-    return [e](const std::vector<EnumerationType>& children) { assert(children.empty()); return e; };
-  }
-
-  uint32_t get_num_children(NodeType t) override
-  {
-    if (t == NodeType::Constant || t == NodeType::Var) {
-      return 0;
-    }
-    if (t == NodeType::X || t == NodeType::G || t == NodeType::Not || t == NodeType::F) {
+    if (t == SymbolType::X || t == SymbolType::G || t == SymbolType::Not || t == SymbolType::F) {
       return 1;
     }
-    if (t == NodeType::And || t == NodeType::U) {
+    if (t == SymbolType::And || t == SymbolType::U) {
       return 2;
     }
-    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
+    return 0;
   }
 
-  int32_t get_node_cost(NodeType t) override
+  int32_t get_node_cost(SymbolType t) const override
   {
     return 1;
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
-  }
-
-  void foreach_variable(std::function<bool(EnumerationType)>&& fn) const override
-  {
-    auto begin = storage->inputs.begin();
-    auto end = storage->inputs.end();
-    while (begin != end) {
-      ltl_formula f = { *begin++, 0 };
-      if (!fn(f)) {
-        return;
-      }
-    }
   }
 
   void add_formula(ltl_formula const& a) { formulas.insert(a); }

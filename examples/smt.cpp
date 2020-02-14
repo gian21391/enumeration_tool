@@ -21,24 +21,19 @@
  * SOFTWARE.
  */
 
-#include <enumeration_tool/symbol.hpp>
-#include <enumeration_tool/enumerator_old.hpp>
+#include "smt.hpp"
 
-#include <api/c++/z3++.h>
+#include <enumeration_tool/symbol.hpp>
+#include <enumeration_tool/enumerators/partial_dag_enumerator.hpp>
 
 #include <iostream>
 #include <unordered_map>
 
-// in Z3 terms:
-// - a bool_const is a Var
-// - a bool_val is a Constant
-enum class EnumerationNodeType {
-  Constant, Var, Not, And, Or, Equals, Implies
-};
 
-class smt_enumeration_store : public enumeration_interface<z3::expr, EnumerationNodeType>, public z3::context {
+
+class smt_enumeration_store : public enumeration_interface<z3::expr, EnumerationSymbols>, public z3::context {
 public:
-  using NodeType = EnumerationNodeType;
+  using NodeType = EnumerationSymbols;
   using EnumerationType = z3::expr;
 
   std::vector<std::reference_wrapper<EnumerationType>> variables;
@@ -52,7 +47,7 @@ public:
     return { NodeType::Var };
   }
 
-  callback_fn get_constructor_callback(NodeType t) override {
+  node_callback_fn get_constructor_callback(NodeType t) override {
     if (t == NodeType::Constant) { return [&]() -> EnumerationType { return bool_val(false); }; }
     if (t == NodeType::Not) { return [&](const EnumerationType& a) -> EnumerationType { return !a; }; }
     if (t == NodeType::And) { return [&](const EnumerationType& a, const EnumerationType& b) -> EnumerationType { return (a && b); }; }
@@ -62,7 +57,7 @@ public:
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
-  callback_fn get_variable_callback(EnumerationType e) override {
+  node_callback_fn get_variable_callback(EnumerationType e) override {
     return [e](){ return e; };
   }
 
@@ -126,7 +121,7 @@ public:
   using formula_t = z3::expr;
 
   explicit smt_enumerator(store_t& s)
-    : enumerator{s.build_symbols()}, store{s} {}
+    : enumerator{ s.build_grammar()}, store{s} {}
 
   void use_formula() override {
     for (const auto& element : stack) {

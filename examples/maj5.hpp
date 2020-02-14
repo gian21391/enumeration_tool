@@ -34,7 +34,7 @@ enum EnumerationSymbolsMaj3
 };
 
 
-class mig_enumeration_interface : public enumeration_interface<mockturtle::mig_network, mockturtle::mig_network::signal, EnumerationSymbolsMaj3> {
+class npn4_enumeration_interface : public enumeration_interface<mockturtle::mig_network, mockturtle::mig_network::signal, EnumerationSymbolsMaj3> {
 public:
   using EnumerationType = mockturtle::mig_network;
   using NodeType = mockturtle::mig_network::signal;
@@ -84,7 +84,7 @@ public:
   }
 
   enumeration_attributes get_enumeration_attributes(SymbolType t) override {
-    if (t == SymbolType::Maj3) { return {enumeration_attributes::commutative}; }
+    if (t == SymbolType::Maj3) { return {enumeration_attributes::nary_commutative}; }
     return {};
   }
 

@@ -1,0 +1,30 @@
+  if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::commutative)) {
+   // single level section
+    int previous_assignment = 0;
+    std::for_each(node.begin(), node.end(), [&](int input) {
+      if (input != 0) {
+        if (previous_assignment > *(_current_assignments[input - 1]))
+        {
+          duplicated = true;
+          return;
+        }
+        previous_assignment = *(_current_assignments[input - 1]);
+      }
+    });
+  }
+
+  if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::nary_commutative)) {
+   // nary section
+    // chain of commutatives
+    auto chain = get_chain_of_same_operator(index);
+    int previous_assignment = 0;
+    std::for_each(std::begin(chain), std::end(chain), [&](int input) {
+      if (input != 0) {
+        if (previous_assignment > *(_current_assignments[input - 1]))
+        {
+          duplicated = true;
+          return;
+        }
+      }
+    });
+  }

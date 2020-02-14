@@ -25,6 +25,8 @@
 
 #include <vector>
 #include <chrono>
+#include <algorithm>
+#include <ctime>
 
 template <class T>
 bool is_unique(std::vector<T> &x) { // this modifies the vector passed
@@ -44,4 +46,52 @@ struct measure
       (std::chrono::steady_clock::now() - start);
     return duration.count();
   }
+
+  template<typename F, typename ...Args>
+  static typename TimeT::rep execution_thread(F&& func, Args&&... args)
+  {
+    struct timespec ts;
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 )
+      return {-1};
+    std::chrono::nanoseconds start(ts.tv_nsec + (ts.tv_sec * 1000000000));
+
+    std::forward<decltype(func)>(func)(std::forward<Args>(args)...);
+
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 )
+      return {-1};
+    std::chrono::nanoseconds end(ts.tv_nsec + (ts.tv_sec * 1000000000));
+    auto duration = std::chrono::duration_cast< TimeT>(end - start);
+
+    return duration.count();
+  }
 };
+
+namespace std {
+
+template <>
+struct hash<std::vector<int>>
+{
+  std::size_t operator()(std::vector<int> const& vec) const noexcept
+  {
+    std::size_t seed = vec.size();
+    for(auto& i : vec) {
+      seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
+
+template <>
+struct hash<std::vector<graph>>
+{
+  std::size_t operator()(std::vector<graph> const& vec) const noexcept
+  {
+    std::size_t seed = vec.size();
+    for(auto& i : vec) {
+      seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
+
+}

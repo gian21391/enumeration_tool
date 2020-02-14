@@ -29,6 +29,8 @@
   \author Winston Haaswijk
 */
 
+#pragma once
+
 #include "partial_dag.hpp"
 
 namespace percy

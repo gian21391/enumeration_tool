@@ -31,13 +31,14 @@
 #include <set>
 #include <sstream>
 
-enum class EnumerationNodeType {
+enum class EnumerationSymbols
+{
   Constant, Var, Not, And, X, G, F, U
 };
 
-class ltl_enumeration_store : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationNodeType>, public copycat::ltl_formula_store {
+class ltl_enumeration_store : public enumeration_interface<copycat::ltl_formula_store::ltl_formula, EnumerationSymbols>, public copycat::ltl_formula_store {
 public:
-  using NodeType = EnumerationNodeType;
+  using NodeType = EnumerationSymbols;
   using EnumerationType = copycat::ltl_formula_store::ltl_formula;
 
   std::vector<NodeType> get_node_types() override {
@@ -48,14 +49,14 @@ public:
     return { NodeType::Var };
   }
 
-  callback_fn get_constructor_callback(NodeType t) override {
-    if (t == NodeType::Constant) { return [&]() -> EnumerationType { return get_constant(false); }; }
-    if (t == NodeType::Not) { return [&](EnumerationType a) -> EnumerationType { return !a; }; }
-    if (t == NodeType::X) { return [&](EnumerationType a) -> EnumerationType { return create_next(a); }; }
-    if (t == NodeType::G) { return [&](EnumerationType a) -> EnumerationType { return create_globally(a); }; }
-    if (t == NodeType::F) { return [&](EnumerationType a) -> EnumerationType { return create_eventually(a); }; }
-    if (t == NodeType::And) { return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_and(a, b); }; }
-    if (t == NodeType::U) { return [&](EnumerationType a, EnumerationType b) -> EnumerationType { return create_until(a, b); }; }
+  node_callback_fn get_constructor_callback(NodeType t) override {
+    if (t == NodeType::Constant) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.empty()); return get_constant(false); }; }
+    if (t == NodeType::Not) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return !children[0]; }; }
+    if (t == NodeType::X) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_next(children[0]); }; }
+    if (t == NodeType::G) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_globally(children[0]); }; }
+    if (t == NodeType::F) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 1); return create_eventually(children[0]); }; }
+    if (t == NodeType::And) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_and(children[0], children[1]); }; }
+    if (t == NodeType::U) { return [&](const std::vector<EnumerationType>& children) -> EnumerationType { assert(children.size() == 2); return create_until(children[0], children[1]); }; }
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
@@ -68,8 +69,8 @@ public:
     return {};
   }
 
-  callback_fn get_variable_callback(EnumerationType e) override {
-    return [e](){ return e; };
+  node_callback_fn get_variable_callback(EnumerationType e) override {
+    return [e](const std::vector<EnumerationType>& children){ return e; };
   }
 
   uint32_t get_num_children(NodeType t) override {
@@ -117,7 +118,7 @@ public:
   using formula_t = store_t::ltl_formula;
 
   explicit ltl_enumerator(store_t& s, const std::unordered_map<uint32_t, std::string>& v)
-    : enumerator{s.build_symbols()}, variable_names{v}, store{s} {}
+    : enumerator{ s.build_grammar()}, variable_names{v}, store{s} {}
 
   void use_formula() override {
     auto temp_vector = std::vector<unsigned>({1,8,1,7,6});
