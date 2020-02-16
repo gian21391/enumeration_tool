@@ -38,3 +38,7 @@ if (NOT TARGET CLI11)
   add_library(CLI11 INTERFACE) # v1.9.0
   target_include_directories(json INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/CLI11)
 endif()
+
+if (NOT TARGET range-v3)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/range-v3-0.10.0)
+endif()

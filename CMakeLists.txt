@@ -7,7 +7,7 @@ add_subdirectory(lib)
 
 add_library(enumeration_tool INTERFACE)
 target_include_directories(enumeration_tool INTERFACE include)
-target_link_libraries(enumeration_tool INTERFACE nauty kitty fmt iterator_tpl magic_enum json)
+target_link_libraries(enumeration_tool INTERFACE nauty kitty fmt iterator_tpl magic_enum json range-v3)
 target_compile_definitions(enumeration_tool INTERFACE)
 
 add_subdirectory(examples)
