@@ -26,7 +26,7 @@
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <magic_enum.hpp>
-#include <range/v3/range.hpp>
+#include <range/v3/core.hpp>
 #include <range/v3/view/transform.hpp>
 
 #include "../grammar.hpp"
