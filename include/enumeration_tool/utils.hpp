@@ -34,6 +34,16 @@ bool is_unique(std::vector<T> &x) { // this modifies the vector passed
   return std::adjacent_find( x.begin(), x.end() ) == x.end();
 }
 
+bool is_leaf_node(const std::vector<int> node) {
+  assert(!node.empty());
+
+  if (node.size() == 2) {
+    return node[0] == 0 && node[1] == 0;
+  }
+
+  return node[0] == 0 && std::adjacent_find(node.begin(), node.end(), std::not_equal_to<>()) == node.end();
+}
+
 template<typename TimeT = std::chrono::milliseconds>
 struct measure
 {

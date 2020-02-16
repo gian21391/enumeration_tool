@@ -23,16 +23,18 @@
 
 #pragma once
 
+#include <fmt/format.h>
+#include <fmt/ranges.h>
+#include <magic_enum.hpp>
+#include <range/v3/range.hpp>
+#include <range/v3/view/transform.hpp>
+
 #include "../grammar.hpp"
 #include "../partial_dag/partial_dag.hpp"
 #include "../partial_dag/partial_dag3_generator.hpp"
 #include "../partial_dag/partial_dag_generator.hpp"
 #include "../symbol.hpp"
 #include "../utils.hpp"
-
-#include <fmt/format.h>
-#include <fmt/ranges.h>
-#include <magic_enum.hpp>
 
 #define ENABLE_DEBUG 0
 
@@ -49,7 +51,7 @@ public:
     Nothing, NextDag, NextAssignment, StopEnumeration, DoNotIncrease
   };
 
-  using callback_t = std::function<void(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*, const std::shared_ptr<EnumerationType>&)>;
+  using callback_t = std::function<std::pair<bool, std::string>(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*, const std::shared_ptr<EnumerationType>&)>;
 
   partial_dag_enumerator(
     const grammar<EnumerationType, NodeType, SymbolType>& symbols,
@@ -289,7 +291,8 @@ public:
         }
 
         if (!formula_is_duplicate() && /*current_assignment_inside_grammar() &&*/ _use_formula_callback != nullptr) {
-          _use_formula_callback(this, to_enumeration_type());
+          auto result = _use_formula_callback(this, to_enumeration_type());
+          duplicate_accumulation(result.second);
         }
 
         if (_next_task == Task::DoNotIncrease) {
@@ -506,7 +509,75 @@ protected:
     return _interface->_shared_object_store;
   }
 
-  bool formula_is_duplicate()
+  auto duplicate_accumulation_check() -> bool
+  {
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
+    long start = (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
+
+    if (positions_in_current_assignment.empty()) { // the current graph doesn't contain the subgraph
+      return false;
+    }
+
+    for (const auto& positions : positions_in_current_assignment) {
+      for (const auto& duplicated_assignment : duplicated_assignments) {
+        bool flag = true;
+        for (int i = 0; i < positions.size(); ++i) {
+          if (*(_current_assignments[positions[i]]) != duplicated_assignment[i])
+          {
+            flag = false;
+            break; // different -> go to next duplicated assignments
+          }
+        }
+        if (flag) {
+          increase_stack_at_position(positions[0]);
+
+          if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
+          accumulation_check_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
+
+          return true; // if we reach this we found a duplicated
+        }
+      }
+    }
+
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
+    accumulation_check_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
+    return false;
+  }
+
+  auto duplicate_accumulation(const std::string& duplicate_function)
+  {
+    auto value = static_cast<unsigned>(std::stoul(duplicate_function, nullptr, 16));
+    if (minimal_sizes.find(value) == minimal_sizes.end()) {
+      minimal_sizes.insert({value, _initial_dag.get_vertices().size()});
+      return; // found new minimal function -> nothing left to do
+    }
+
+    // minimal function already in the set
+    assert(minimal_sizes.at(value) <= _initial_dag.get_vertices().size());
+
+    if (minimal_sizes.at(value) == _initial_dag.get_vertices().size())
+    {
+      return; // the size is equal -> despite being duplicate we do nothing at this stage
+      //TODO: manage same size
+    }
+
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
+    long start = (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
+
+    // minimal function already in the set && the current dag is larger -> duplicate
+    if (subgraph == _dags[_current_dag].get_vertices()) { // just for this specific structure right now
+      duplicated_assignments.emplace_back(_current_assignments | ranges::views::transform([](auto item){ return *item; }));
+//      duplicated_assignments.emplace_back();
+//      for (const auto& item : _current_assignments) {
+//        duplicated_assignments.back().emplace_back(*item);
+//      }
+    }
+
+    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
+    accumulation_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
+  }
+
+  auto formula_is_duplicate() -> bool
   {
     bool duplicated = false;
 
@@ -532,7 +603,9 @@ protected:
         }
         if (!std::is_sorted(inputs.begin(), inputs.end())) {
           // increase stack at the lowest position
-          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
+//          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end()))); // general case
+          std::sort(positions.begin(), positions.end());
+          increase_stack_at_position(positions[1]);
           return true;
         }
       }
@@ -552,6 +625,7 @@ protected:
         if (inputs.size() == node.size() + 1) { // this gate has only PI as inputs
           if (!same_gate_exists_set.insert(inputs).second) { // cannot insert -> same gate exists
             // increase stack at the lowest position
+//            std::cout << fmt::format("Same gate: {}", get_current_assignment());
             increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
             return true;
           }
@@ -571,7 +645,10 @@ protected:
           }
         }
         if (!is_unique(inputs)) {
-          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
+          // specific to 2 gates
+//          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
+          std::sort(positions.begin(), positions.end());
+          increase_stack_at_position(positions[1]);
           return true;
         }
 
@@ -595,6 +672,12 @@ protected:
 
       }
     }
+
+    if (duplicate_accumulation_check()) {
+//      std::cout << "Duplicate accumulation!" << std::endl;
+      return true;
+    }
+
     return false;
   }
 
@@ -624,7 +707,56 @@ protected:
     });
   }
 
+  std::pair<std::vector<std::vector<int>>, std::vector<bool>> get_subgraph(const std::vector<std::vector<int>>& graph, int starting_index) {
+    std::vector<std::vector<int>> result = graph;
+
+    if (starting_index == graph.size() - 1) {
+      return {result, std::vector<bool>(result.size(), true)};
+    }
+
+    std::vector<bool> to_grab(graph.size(), false);
+    to_grab[starting_index] = true;
+
+    for (const auto& item : graph[starting_index]) {
+      if (item > 0) {
+        get_subgraph_impl(graph, item - 1, to_grab);
+      }
+    }
+
+    std::vector<bool> to_grab_return = to_grab;
+
+    for (int i = 0; i < to_grab.size(); ++i) {
+      if (!to_grab[i]) {
+        result.erase(result.begin() + i);
+        to_grab.erase(to_grab.begin() + i);
+        for (auto start = result.begin() + i; start != result.end(); ++start){
+          for (auto& item : *start) {
+            if (item > 0) {
+              item--;
+            }
+          }
+        }
+        i--;
+      }
+    }
+
+    return {result, to_grab_return};
+  }
+
+  void get_subgraph_impl(const std::vector<std::vector<int>>& graph, int starting_index, std::vector<bool>& to_grab) {
+    std::vector<std::vector<int>> result;
+    to_grab[starting_index] = true;
+
+    for (const auto& item : graph[starting_index]) {
+      if (item > 0) {
+        get_subgraph_impl(graph, item - 1, to_grab);
+      }
+    }
+  }
+
   void initialize() {
+    current_graph_contains_subgraph = false;
+    positions_in_current_assignment.clear();
     _current_assignments.clear();
     _possible_assignments.clear();
 
@@ -655,6 +787,18 @@ protected:
           }
         }
       }
+    }
+
+    for (int k = new_dag.get_vertices().size()  - 1; k >= 0; --k) {
+      if (std::is_sorted(new_dag.get_vertices()[k].begin(), new_dag.get_vertices()[k].end())) {
+        continue;
+      }
+      const auto& child0 = new_dag.get_vertices()[new_dag.get_vertices()[k][0] - 1];
+      const auto& child1 = new_dag.get_vertices()[new_dag.get_vertices()[k][1] - 1];
+      if (!is_leaf_node(child0) || !is_leaf_node(child1)) {
+        continue;
+      }
+      std::swap(new_dag.get_vertices()[k][0], new_dag.get_vertices()[k][1]);
     }
 
     _dags[_current_dag] = new_dag;
@@ -694,6 +838,21 @@ protected:
         break;
       }
     }
+
+    const auto& vertices = _dags[_current_dag].get_vertices();
+    for (int j = vertices.size() - 2; j >= 0; --j ) { // this check doesn't start from the root for now
+      auto result = get_subgraph(vertices, j);
+      if (result.first == subgraph) {
+        current_graph_contains_subgraph = true;
+        positions_in_current_assignment.emplace_back();
+        //TODO: create assignments
+        for (int k = 0; k < _current_assignments.size(); k++) {
+          if (result.second[k]) {
+            positions_in_current_assignment.back().emplace_back(k);
+          }
+        }
+      }
+    }
   }
 
   auto current_assignment_inside_grammar() -> bool
@@ -726,7 +885,7 @@ protected:
     bool increase_flag = false;
 
     if (position > 0) {
-      for (int i = 0; i < position - 1; ++i) {
+      for (int i = 0; i < position; ++i) {
         _current_assignments[i] = _possible_assignments[i].begin();
       }
     }
@@ -749,6 +908,22 @@ protected:
   }
 
   auto increase_stack_test() -> bool // this function returns true if it was possible to increase the stack
+  {
+    bool increase_flag = false;
+
+    for (auto i = 0ul; i < _possible_assignments.size(); i++) {
+      if (++_current_assignments[i] == _possible_assignments[i].end()) {
+        _current_assignments[i] = _possible_assignments[i].begin();
+      } else {
+        increase_flag = true;
+        break;
+      }
+    }
+
+    return increase_flag;
+  }
+
+  auto increase_stack_permitted_children() -> bool // this function returns true if it was possible to increase the stack
   {
     bool increase_flag = false;
 
@@ -832,6 +1007,19 @@ public:
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
   int _nr_in = 1;
+
+
+  // duplicate accumulation utilities
+  bool current_graph_contains_subgraph = false; // this boolean needs to be a vector
+  // all duplicated are associated to a subnetwork that is then checked at initialization
+  // the current implementation works for a single set
+  std::vector<std::vector<int>> duplicated_assignments;
+  std::vector<std::vector<int>> positions_in_current_assignment; // for each subgraph
+  std::vector<std::vector<int>> subgraph = {{0, 0}, {0, 0}, {0, 0}, {2, 3}, {1, 4}};
+  std::unordered_map<unsigned, unsigned> minimal_sizes; // key: HEX value of the truth table converted to unsigned, value: minimal size
+  long accumulation_check_time = 0;
+  long accumulation_time = 0;
+  struct timespec ts;
 
 public:
   int current_nr_gates;

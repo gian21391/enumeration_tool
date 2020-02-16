@@ -88,8 +88,11 @@ public:
   [[nodiscard]]
   auto get_possible_children(SymbolType t) const -> std::vector<SymbolType> override
   {
-    if (t == And || t ==  And_F_TT || t ==  And_F_FT || t ==  And_T_FT || t == And_T_FF || t == And_F_FF || t == And_F_TF || t == And_T_TF) {
+    if (t == And || t ==  And_F_TT || t ==  And_F_FT || t ==  And_T_FT || t == And_F_TF || t == And_T_TF) {
       return { False, And, A, B, C, And_F_TT, And_F_FT, And_T_FT, And_T_FF, And_F_FF, And_F_TF, And_T_TF };
+    }
+    if (t == And_T_FF || t == And_F_FF) {
+      return { False, And, A, B, C, And_T_FT, And_T_FF, And_T_TF };
     }
     return {};
   }
