@@ -77,7 +77,7 @@ protected:
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class enumeration_symbol { // this is the node
 public:
-  using constructor_callback_fn = std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
+  using constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
 
   bool _terminal_symbol = true;
   SymbolType type;
@@ -93,8 +93,8 @@ class enumeration_interface {
 public:
   std::shared_ptr<EnumerationType> _shared_object_store;
 
-  using node_callback_fn = std::function<NodeType(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
-  using output_callback_fn = std::function<void(std::shared_ptr<EnumerationType>, const std::vector<NodeType>&)>;
+  using node_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using output_callback_fn = std::function<void(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
 
   virtual auto get_symbol_types() const -> std::vector<SymbolType> = 0;
   virtual auto get_node_constructor(SymbolType t) -> node_callback_fn = 0;
