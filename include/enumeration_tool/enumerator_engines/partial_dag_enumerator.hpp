@@ -485,6 +485,8 @@ protected:
 
   auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
   {
+//    START_CLOCK();
+
     _interface->construct();
     // the unsigned here represents the index in the vector obtained from get_symbol_types()
     std::unordered_map<unsigned, NodeType> leaf_nodes;
@@ -506,13 +508,13 @@ protected:
     auto output_constructor = _interface->get_output_constructor();
     output_constructor(_interface->_shared_object_store, {head_node});
 
+//    ACCUMULATE_TIME(to_enumeration_type_time);
     return _interface->_shared_object_store;
   }
 
   auto duplicate_accumulation_check() -> bool
   {
-    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
-    long start = (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
+    START_CLOCK();
 
     if (positions_in_current_assignment.empty()) { // the current graph doesn't contain the subgraph
       return false;
@@ -530,17 +532,13 @@ protected:
         }
         if (flag) {
           increase_stack_at_position(positions[0]);
-
-          if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
-          accumulation_check_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
-
+          ACCUMULATE_TIME(accumulation_check_time);
           return true; // if we reach this we found a duplicated
         }
       }
     }
 
-    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
-    accumulation_check_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
+    ACCUMULATE_TIME(accumulation_check_time);
     return false;
   }
 
@@ -561,20 +559,14 @@ protected:
       //TODO: manage same size
     }
 
-    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
-    long start = (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
+    START_CLOCK();
 
     // minimal function already in the set && the current dag is larger -> duplicate
-    if (subgraph == _dags[_current_dag].get_vertices()) { // just for this specific structure right now
+    if (subgraphs[1] == _dags[_current_dag].get_vertices()) { // just for this specific structure right now
       duplicated_assignments.emplace_back(_current_assignments | ranges::views::transform([](auto item){ return *item; }));
-//      duplicated_assignments.emplace_back();
-//      for (const auto& item : _current_assignments) {
-//        duplicated_assignments.back().emplace_back(*item);
-//      }
     }
 
-    if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) exit(-1);
-    accumulation_time += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - start;
+    ACCUMULATE_TIME(accumulation_time);
   }
 
   auto formula_is_duplicate() -> bool
@@ -674,7 +666,6 @@ protected:
     }
 
     if (duplicate_accumulation_check()) {
-//      std::cout << "Duplicate accumulation!" << std::endl;
       return true;
     }
 
@@ -731,7 +722,10 @@ protected:
         to_grab.erase(to_grab.begin() + i);
         for (auto start = result.begin() + i; start != result.end(); ++start){
           for (auto& item : *start) {
-            if (item > 0) {
+            if (item == i + 1) {
+              item = 0;
+            }
+            if (item > 0 && item > i) {
               item--;
             }
           }
@@ -839,13 +833,14 @@ protected:
       }
     }
 
+    // initialize duplicate accumulation
     const auto& vertices = _dags[_current_dag].get_vertices();
     for (int j = vertices.size() - 2; j >= 0; --j ) { // this check doesn't start from the root for now
       auto result = get_subgraph(vertices, j);
-      if (result.first == subgraph) {
+      if (result.first == subgraphs[1]) {
         current_graph_contains_subgraph = true;
         positions_in_current_assignment.emplace_back();
-        //TODO: create assignments
+
         for (int k = 0; k < _current_assignments.size(); k++) {
           if (result.second[k]) {
             positions_in_current_assignment.back().emplace_back(k);
@@ -853,6 +848,8 @@ protected:
         }
       }
     }
+
+
   }
 
   auto current_assignment_inside_grammar() -> bool
@@ -1015,8 +1012,12 @@ public:
   // the current implementation works for a single set
   std::vector<std::vector<int>> duplicated_assignments;
   std::vector<std::vector<int>> positions_in_current_assignment; // for each subgraph
-  std::vector<std::vector<int>> subgraph = {{0, 0}, {0, 0}, {0, 0}, {2, 3}, {1, 4}};
+  std::vector<std::vector<std::vector<int>>> subgraphs = {
+                                                          {{0, 0}, {0, 0}, {0, 0}, {2, 3}, {1, 4}},
+                                                          {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {3, 4}, {1, 2}, {5, 6}}
+                                                         };
   std::unordered_map<unsigned, unsigned> minimal_sizes; // key: HEX value of the truth table converted to unsigned, value: minimal size
+  long to_enumeration_type_time = 0;
   long accumulation_check_time = 0;
   long accumulation_time = 0;
   struct timespec ts;
