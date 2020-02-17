@@ -28,6 +28,26 @@
 #include <algorithm>
 #include <ctime>
 
+#ifdef PERFORMANCE_MONITORING
+  #define START_CLOCK() \
+      if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) { \
+        std::cout << "Clock error\n"; \
+        exit(-1); \
+      } \
+      long _start_time_macro = (ts.tv_nsec / 1000) + (ts.tv_sec * 1000000);
+
+#define ACCUMULATE_TIME(timer) \
+        if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0) { \
+          std::cout << "Clock error\n"; \
+          exit(-1); \
+        } \
+        timer += ((ts.tv_nsec / 1000) + (ts.tv_sec * 1000000)) - _start_time_macro;
+
+#else
+  #define START_CLOCK()
+  #define ACCUMULATE_TIME(timer)
+#endif
+
 template <class T>
 bool is_unique(std::vector<T> &x) { // this modifies the vector passed
   std::sort( x.begin(), x.end() ); // O(N log N)
