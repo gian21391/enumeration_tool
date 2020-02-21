@@ -20,7 +20,7 @@ if (NOT TARGET iterator_tpl)
   target_include_directories(iterator_tpl INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/Simple-Iterator-Template)
 endif()
 
-add_subdirectory(z3 EXCLUDE_FROM_ALL)
+#add_subdirectory(z3 EXCLUDE_FROM_ALL)
 
 add_subdirectory(cxxopts-2.2.0)
 
