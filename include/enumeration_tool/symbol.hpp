@@ -111,6 +111,11 @@ public:
     _shared_object_store = std::make_shared<EnumerationType>();
   }
 
+  auto construct_and_return() -> std::shared_ptr<EnumerationType>
+  {
+    return std::make_shared<EnumerationType>();
+  }
+
   auto build_grammar() -> grammar<EnumerationType, NodeType, SymbolType>
   {
     std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>> symbols;
