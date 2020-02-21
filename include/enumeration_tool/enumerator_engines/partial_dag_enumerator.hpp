@@ -28,6 +28,7 @@
 #include <magic_enum.hpp>
 #include <range/v3/core.hpp>
 #include <range/v3/view/transform.hpp>
+#include <range/v3/view/indirect.hpp>
 
 #include "../grammar.hpp"
 #include "../partial_dag/partial_dag.hpp"
@@ -35,8 +36,6 @@
 #include "../partial_dag/partial_dag_generator.hpp"
 #include "../symbol.hpp"
 #include "../utils.hpp"
-
-#define ENABLE_DEBUG 0
 
 namespace enumeration_tool {
 
@@ -60,33 +59,11 @@ public:
     : _symbols{ symbols }
     , _interface{ interface }
     , _use_formula_callback{ use_formula_callback }
-  {
-    _nr_in = 3;
-//    _nr_in = _symbols.get_max_cardinality();
-//
-//    auto possible_roots = _symbols.get_root_nodes_indexes();
-//    for (const auto& root : possible_roots) {
-//      if (_symbols[root].num_children < _nr_in) {
-//        _nr_in = _symbols[root].num_children;
-//      }
-//    }
-//
-//    for (auto i = 0ul; i < _symbols.size(); i++) {
-//      if (_symbols[i].num_children > 0) {
-//        if (_symbols[i].num_children < _nr_in) {
-//          _nr_in = _symbols[i].num_children;
-//        }
-//      }
-//    }
-  }
+  {}
 
   [[nodiscard]]
   auto get_current_assignment() const -> std::vector<int> {
-    std::vector<int> assignments;
-    for (const auto& assignment : _current_assignments) {
-      assignments.emplace_back(*assignment);
-    }
-    return assignments;
+    return ranges::views::indirect(_current_assignments);
   }
 
   [[nodiscard]]
@@ -129,138 +106,6 @@ public:
     return os.str();
   }
 
-  void enumerate_impl() {
-    _current_dag = 0;
-    initialize();
-
-    while (_current_dag < _dags.size())
-    {
-      if (_next_task == Task::NextDag) {
-        _next_task = Task::Nothing;
-        next_dag();
-        continue;
-      }
-      if (_next_task == Task::NextAssignment) {
-        _next_task = Task::Nothing;
-        increase_stack();
-        continue;
-      }
-      if (_next_task == Task::StopEnumeration) {
-        _next_task = Task::Nothing;
-        break;
-      }
-
-      if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
-        _use_formula_callback(this, to_enumeration_type());
-      }
-
-      increase_stack();
-    }
-  }
-
-  void enumerate(unsigned max_cost) {
-    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), _nr_in);
-    enumerate_impl();
-  }
-
-  void enumerate(unsigned min_cost, unsigned max_cost)
-  {
-    _dags = percy::pd3_generate_filtered(static_cast<int>(max_cost), _nr_in);
-    _dags.erase(std::remove_if(std::begin(_dags), std::end(_dags), [&](const percy::partial_dag& dag){
-      return dag.nr_vertices() < min_cost;
-    }), _dags.end());
-
-    enumerate_impl();
-  }
-
-  void enumerate_npn(unsigned max_cost)
-  {
-    percy::partial_dag g;
-    percy::partial_dag3_generator gen;
-
-#if ENABLE_DEBUG
-    auto current_cost = 0;
-    auto max_nr_gates = 0;
-#endif
-
-    std::vector<size_t> signatures;
-
-    std::vector<int> inputs(20, 0);
-
-    gen.set_callback([&](percy::partial_dag3_generator* gen) {
-      for (int i = 0; i < gen->nr_vertices(); i++) {
-        g.set_vertex(i, gen->_js[i], gen->_ks[i], gen->_ls[i]);
-      }
-
-      auto nr_pi = g.nr_pi_fanins();
-      inputs[nr_pi]++;
-
-      if (g.nr_pi_fanins() <= _nr_in) {
-        _dags.clear();
-        _dags.push_back(g);
-        _current_dag = 0;
-        initialize();
-
-#if ENABLE_DEBUG
-        if (_dags[_current_dag].nr_vertices() > current_cost) {
-          current_cost = _dags[_current_dag].nr_vertices();
-          std::cout << fmt::format("[i] Current cost: {}", current_cost) << std::endl;
-        }
-        auto nr_gates = 0;
-        _dags[_current_dag].foreach_vertex([&](const std::vector<int>& vertex, int) {
-          auto inputs = 0;
-          for (const auto input : vertex) {
-            if (input > 0)
-              inputs++;
-          }
-          if (inputs == 3)
-            nr_gates++;
-        });
-        current_nr_gates = nr_gates;
-        if (nr_gates > max_nr_gates) {
-          max_nr_gates = nr_gates;
-          std::cout << fmt::format("[i] New max number of gates: {}", max_nr_gates) << std::endl;
-        }
-#endif
-
-        while (true) {
-          if (_next_task == Task::NextDag) {
-            _next_task = Task::Nothing;
-            return;
-          }
-          if (_next_task == Task::NextAssignment) {
-            _next_task = Task::Nothing;
-            if (!increase_stack_test()) {
-              return;
-            }
-            continue;
-          }
-          if (_next_task == Task::StopEnumeration) {
-            _next_task = Task::Nothing;
-            break;
-          }
-
-          if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
-            _use_formula_callback(this, to_enumeration_type());
-          }
-
-          if (!increase_stack_test()) {
-            return;
-          }
-        }
-      }
-    });
-
-    for (int i = 1; i <= max_cost; i++) {
-      g.reset(3, i);
-      gen.reset(i);
-      gen.count_dags();
-    }
-
-//    std::cout << fmt::format("{}", inputs) << std::endl;
-//    return;
-  }
-
   void enumerate_aig_pre_enumeration(const std::vector<percy::partial_dag>& pdags)
   {
     current_dag_aig_pre_enumeration = -1;
@@ -290,7 +135,7 @@ public:
           break;
         }
 
-        if (!formula_is_duplicate() && /*current_assignment_inside_grammar() &&*/ _use_formula_callback != nullptr) {
+        if (!formula_is_duplicate() && _use_formula_callback != nullptr) {
           auto result = _use_formula_callback(this, to_enumeration_type());
           duplicate_accumulation(result.second);
         }
@@ -305,124 +150,6 @@ public:
         }
       }
     }
-  }
-
-  void enumerate_aig(unsigned max_cost)
-  {
-    percy::partial_dag g;
-    percy::partial_dag_generator gen;
-
-#if ENABLE_DEBUG
-    auto current_cost = 0;
-    auto max_nr_gates = 0;
-#endif
-
-    std::vector<size_t> signatures;
-
-    std::vector<int> inputs(20, 0);
-    int i = 0;
-
-    gen.set_callback([&](percy::partial_dag_generator* gen) {
-      for (int i = 0; i < gen->nr_vertices(); i++) {
-        g.set_vertex(i, gen->_js[i], gen->_ks[i]);
-      }
-
-//      auto s = g.get_canonical_signature();
-//      if (std::find(signatures.begin(), signatures.end(), s) == signatures.end()) {
-//        signatures.emplace_back(s);
-//      }
-//      else {
-//        return;
-//      }
-//
-//      std::cout << fmt::format("Number of graphs: {}\n", ++i);
-//      std::cout << fmt::format("Number of isomorphic graphs: {}\n", signatures.size());
-//
-//      percy::to_dot(g, fmt::format("noniso_result_{}.dot", i++));
-//      return;
-
-      auto nr_pi = g.nr_pi_fanins();
-      inputs[nr_pi]++;
-
-      if (g.nr_pi_fanins() >= 1) {
-        _dags.clear();
-        _dags.push_back(g);
-        _current_dag = 0;
-        initialize();
-
-#if ENABLE_DEBUG
-        if (_dags[_current_dag].nr_vertices() > current_cost) {
-          current_cost = _dags[_current_dag].nr_vertices();
-          std::cout << fmt::format("[i] Current cost: {}", current_cost) << std::endl;
-        }
-        auto nr_gates = 0;
-        _dags[_current_dag].foreach_vertex([&](const std::vector<int>& vertex, int) {
-          auto inputs = 0;
-          for (const auto input : vertex) {
-            if (input > 0)
-              inputs++;
-          }
-          if (inputs == 2)
-            nr_gates++;
-        });
-        current_nr_gates = nr_gates;
-        if (nr_gates > max_nr_gates) {
-          max_nr_gates = nr_gates;
-          std::cout << fmt::format("[i] New max number of gates: {}", max_nr_gates) << std::endl;
-        }
-#endif
-
-        while (true) {
-          if (_next_task == Task::NextDag) {
-            _next_task = Task::Nothing;
-            return;
-          }
-          if (_next_task == Task::NextAssignment) {
-            _next_task = Task::Nothing;
-            if (!increase_stack_test()) {
-              return;
-            }
-            continue;
-          }
-          if (_next_task == Task::StopEnumeration) {
-            _next_task = Task::Nothing;
-            break;
-          }
-
-          if (!formula_is_duplicate() && current_assignment_inside_grammar() && _use_formula_callback != nullptr) {
-            _use_formula_callback(this, to_enumeration_type());
-          }
-
-          if (!increase_stack_test()) {
-            return;
-          }
-        }
-      }
-    });
-
-    for (int i = 1; i <= max_cost; i++) {
-      g.reset(2, i);
-      gen.reset(i);
-      gen.count_dags();
-    }
-
-//    std::cout << fmt::format("{}", inputs) << std::endl;
-//    return;
-  }
-
-  void set_next_task(Task t) {
-    _next_task = t;
-  }
-
-  void dump_current_candidate(std::string filename) {
-    std::vector<std::string> labels(_dags[_current_dag].nr_vertices());
-
-    _dags[_current_dag].foreach_vertex([&](auto const&, int index){
-      auto assignment = *_current_assignments[index];
-      labels[index] = _interface->symbol_type_to_string(_symbols[assignment].type);
-    });
-
-    percy::to_dot(_dags[_current_dag], labels, filename);
   }
 
 protected:
@@ -521,20 +248,17 @@ protected:
     }
 
     for (const auto& positions : positions_in_current_assignment) {
-      for (const auto& duplicated_assignment : duplicated_assignments) {
-        bool flag = true;
-        for (int i = 0; i < positions.size(); ++i) {
-          if (*(_current_assignments[positions[i]]) != duplicated_assignment[i])
-          {
-            flag = false;
-            break; // different -> go to next duplicated assignments
-          }
-        }
-        if (flag) {
-          increase_stack_at_position(positions[0]);
-          ACCUMULATE_TIME(accumulation_check_time);
-          return true; // if we reach this we found a duplicated
-        }
+
+      std::vector<int> current_assignments_view;
+      for (const auto& position : positions) {
+        current_assignments_view.emplace_back(*(_current_assignments[position]));
+      }
+
+      auto search = duplicated_assignments.find(current_assignments_view);
+      if (search != duplicated_assignments.end()) {
+        increase_stack_at_position(positions[0]);
+        ACCUMULATE_TIME(accumulation_check_time);
+        return true; // if we reach this we found a duplicated
       }
     }
 
@@ -559,14 +283,17 @@ protected:
       //TODO: manage same size
     }
 
-    START_CLOCK();
+
 
     // minimal function already in the set && the current dag is larger -> duplicate
-    if (subgraphs[1] == _dags[_current_dag].get_vertices()) { // just for this specific structure right now
-      duplicated_assignments.emplace_back(_current_assignments | ranges::views::transform([](auto item){ return *item; }));
+    if (accumulate) { //this flag has been set in the initialization
+      START_CLOCK();
+      auto result = duplicated_assignments.insert(ranges::to<std::vector<int>>(_current_assignments | ranges::views::transform([](auto item){ return *item; })));
+      assert(result.second);
+      ACCUMULATE_TIME(accumulation_time);
     }
 
-    ACCUMULATE_TIME(accumulation_time);
+
   }
 
   auto formula_is_duplicate() -> bool
@@ -672,33 +399,7 @@ protected:
     return false;
   }
 
-  auto get_subtree( int starting_index ) -> std::vector<int>
-  {
-    std::vector<int> subtree;
-    if (starting_index < 1) {
-      return subtree;
-    }
-    subtree.emplace_back(*(_current_assignments[starting_index]));
-    auto node = _dags[_current_dag].get_vertex(starting_index);
-    std::for_each(std::begin(node), std::end(node), [&](int input){
-      if (input > 0) {
-        get_subtree(input - 1, subtree);
-      }
-    });
-    return subtree;
-  }
-
-  auto get_subtree( int starting_index, std::vector<int>& subtree ) -> void {
-    subtree.emplace_back(*(_current_assignments[starting_index]));
-    auto node = _dags[_current_dag].get_vertex(starting_index);
-    std::for_each(std::begin(node), std::end(node), [&](int input){
-      if (input > 0) {
-        get_subtree(input - 1, subtree);
-      }
-    });
-  }
-
-  std::pair<std::vector<std::vector<int>>, std::vector<bool>> get_subgraph(const std::vector<std::vector<int>>& graph, int starting_index) {
+  auto get_subgraph(const std::vector<std::vector<int>>& graph, int starting_index) -> std::pair<std::vector<std::vector<int>>, std::vector<bool>> {
     std::vector<std::vector<int>> result = graph;
 
     if (starting_index == graph.size() - 1) {
@@ -749,7 +450,7 @@ protected:
   }
 
   void initialize() {
-    current_graph_contains_subgraph = false;
+    accumulate = false;
     positions_in_current_assignment.clear();
     _current_assignments.clear();
     _possible_assignments.clear();
@@ -762,7 +463,9 @@ protected:
     std::vector<int> added(new_dag.get_vertices().size(), 0);
     while (i < new_dag.get_vertices().size()) {
       for (i = added_elements; i < new_dag.get_vertices().size(); ++i) {
-        if (i < added_elements) continue;
+        if (i < added_elements) {
+          continue;
+        }
         for (int k = 0; k < new_dag.get_vertices()[i].size(); ++k) {
           if (new_dag.get_vertices()[i][k] == 0) {
             std::vector<int> new_node(new_dag.get_fanin(), 0);
@@ -783,7 +486,7 @@ protected:
       }
     }
 
-    for (int k = new_dag.get_vertices().size()  - 1; k >= 0; --k) {
+    for (int k = new_dag.get_vertices().size() - 1; k >= 0; --k) {
       if (std::is_sorted(new_dag.get_vertices()[k].begin(), new_dag.get_vertices()[k].end())) {
         continue;
       }
@@ -838,7 +541,6 @@ protected:
     for (int j = vertices.size() - 2; j >= 0; --j ) { // this check doesn't start from the root for now
       auto result = get_subgraph(vertices, j);
       if (result.first == subgraphs[1]) {
-        current_graph_contains_subgraph = true;
         positions_in_current_assignment.emplace_back();
 
         for (int k = 0; k < _current_assignments.size(); k++) {
@@ -849,32 +551,10 @@ protected:
       }
     }
 
-
-  }
-
-  auto current_assignment_inside_grammar() -> bool
-  {
-    auto vertices = _dags[_current_dag].get_vertices();
-
-    for (int index = vertices.size() - 1; index >= 0; index--) {
-      auto vertex = vertices[index];
-      auto possible_children = _symbols[*(_current_assignments[index])].children;
-      for (const auto& child : vertex) {
-        if (child == 0) {
-          continue;
-        }
-
-        auto result = std::find_if(possible_children.begin(), possible_children.end(), [&](SymbolType type){
-          return _symbols[*(_current_assignments[child - 1])].type == type;
-        });
-
-        if (result == possible_children.end()) {
-          return false;
-        }
-      }
+    if (subgraphs[1] == vertices) { // just for this specific structure right now
+      accumulate = true;
     }
 
-    return true;
   }
 
   auto increase_stack_at_position(unsigned position) -> bool // this function returns true if it was possible to increase the stack
@@ -920,79 +600,6 @@ protected:
     return increase_flag;
   }
 
-  auto increase_stack_permitted_children() -> bool // this function returns true if it was possible to increase the stack
-  {
-    bool increase_flag = false;
-
-    for (auto i = 0ul; i < _possible_assignments.size(); i++) {
-      if (++_current_assignments[i] == _possible_assignments[i].end()) {
-        _current_assignments[i] = _possible_assignments[i].begin();
-      } else {
-        increase_flag = true;
-        break;
-      }
-    }
-
-    return increase_flag;
-  }
-
-  void increase_stack()
-  {
-    bool increase_flag = false;
-
-    for (auto i = 0ul; i < _possible_assignments.size(); i++) {
-      if (++_current_assignments[i] == _possible_assignments[i].end()) {
-        _current_assignments[i] = _possible_assignments[i].begin();
-      } else {
-        increase_flag = true;
-        break;
-      }
-    }
-
-    if (!increase_flag) {
-      next_dag();
-    }
-  }
-
-  void next_dag()
-  {
-    _current_dag++;
-    if (_current_dag < _dags.size()) {
-      initialize();
-    }
-  }
-
-  auto get_chain_of_same_operator(int starting_index) -> std::vector<int> {
-    std::vector<int> chain;
-    auto op = *(_current_assignments[starting_index]);
-    auto starting_node = _dags[_current_dag].get_vertex(starting_index);
-    std::for_each(starting_node.begin(), starting_node.end(), [&](int child){
-      if (child > 0) {
-        if (op == *(_current_assignments[child - 1])) {
-          get_chain_of_same_operator(child - 1, chain);
-        } else {
-          chain.emplace_back(child - 1);
-        }
-      }
-    });
-
-    return chain;
-  }
-
-  auto get_chain_of_same_operator(int starting_index, std::vector<int>& chain) -> void {
-    auto op = *(_current_assignments[starting_index]);
-    auto starting_node = _dags[_current_dag].get_vertex(starting_index);
-    std::for_each(starting_node.begin(), starting_node.end(), [&](int child){
-      if (child > 0) {
-        if (op == *(_current_assignments[child - 1])) {
-          get_chain_of_same_operator(child - 1, chain);
-        } else {
-          chain.emplace_back(child - 1);
-        }
-      }
-    });
-  }
-
 public:
   callback_t _use_formula_callback;
   std::vector<std::vector<unsigned>::const_iterator> _current_assignments;
@@ -1003,15 +610,13 @@ public:
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
-  int _nr_in = 1;
-
 
   // duplicate accumulation utilities
-  bool current_graph_contains_subgraph = false; // this boolean needs to be a vector
   // all duplicated are associated to a subnetwork that is then checked at initialization
   // the current implementation works for a single set
-  std::vector<std::vector<int>> duplicated_assignments;
+  std::set<std::vector<int>> duplicated_assignments;
   std::vector<std::vector<int>> positions_in_current_assignment; // for each subgraph
+  bool accumulate = false;
   std::vector<std::vector<std::vector<int>>> subgraphs = {
                                                           {{0, 0}, {0, 0}, {0, 0}, {2, 3}, {1, 4}},
                                                           {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {3, 4}, {1, 2}, {5, 6}}
