@@ -16,7 +16,7 @@ used, it is necessary to check they are correct.
 #define HAVE_PERROR  1          /* perror() exists */
 #define HAVE_PIPE  1          /* pipe() exists */
 #define HAVE_WAIT  1          /* wait() exists */
-#define HAVE_WAIT_H  0     /* <sys/wait.h> exists */
+#define HAVE_WAIT_H  1     /* <sys/wait.h> exists */
 #define HAVE_POPEN  1          /* popen() and pclose() exist */
 #define POPEN_DEC  1         /* popen() is declared in stdio.h */
 #define FTELL_DEC  1         /* ftell() is declared in stdio.h */
