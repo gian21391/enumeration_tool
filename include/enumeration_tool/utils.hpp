@@ -94,6 +94,24 @@ struct measure
 
     return duration.count();
   }
+
+  template<typename F, typename ...Args>
+  static typename TimeT::rep execution_process(F&& func, Args&&... args)
+  {
+    struct timespec ts;
+    if ( clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) < 0 )
+      return {-1};
+    std::chrono::nanoseconds start(ts.tv_nsec + (ts.tv_sec * 1000000000));
+
+    std::forward<decltype(func)>(func)(std::forward<Args>(args)...);
+
+    if ( clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) < 0 )
+      return {-1};
+    std::chrono::nanoseconds end(ts.tv_nsec + (ts.tv_sec * 1000000000));
+    auto duration = std::chrono::duration_cast< TimeT>(end - start);
+
+    return duration.count();
+  }
 };
 
 namespace std {
