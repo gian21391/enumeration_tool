@@ -24,8 +24,6 @@
 #pragma once
 
 #include <enumeration_tool/grammar.hpp>
-#include <enumeration_tool/enumerator_engines/partial_dag_enumerator.hpp>
-
 #include <mockturtle/networks/aig.hpp>
 
 enum EnumerationSymbols
