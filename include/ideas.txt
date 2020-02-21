@@ -1,3 +1,6 @@
+Avoid constructing the external structure for simulation. -> Direct simulation.
+
+
   if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::commutative)) {
    // single level section
     int previous_assignment = 0;
