@@ -32,10 +32,11 @@
 #include <magic_enum.hpp>
 #include <mockturtle/io/write_aiger.hpp>
 #include <range/v3/core.hpp>
+#include <range/v3/view/indirect.hpp>
 #include <range/v3/view/transform.hpp>
 #include <tbb/concurrent_unordered_map.h>
-#include <tbb/concurrent_vector.h>
 #include <tbb/concurrent_unordered_set.h>
+#include <tbb/concurrent_vector.h>
 
 #include "../grammar.hpp"
 #include "../partial_dag/partial_dag.hpp"
@@ -163,8 +164,9 @@ public:
           if (thread_store.next_task == Task::DoNotIncrease) {
           }
           else if (thread_store.next_task == Task::IncreaseAtPosition) {
-            const std::lock_guard<std::mutex> lock(store.ca_mutex);
             thread_store.next_task = Task::Nothing;
+
+            std::scoped_lock lock(store.ca_mutex);
             if (thread_store.pdag_index != store.current_pdag ||
               thread_store.current_assignment[thread_store.increase_at_position] != *(store.current_assignments[store.current_pdag][thread_store.increase_at_position]))
             {
@@ -186,11 +188,12 @@ public:
 
             thread_store.pdag_index = store.current_pdag;
             thread_store.pdag = store.pdags[store.current_pdag];
-            thread_store.current_assignment = ranges::to<std::vector<int>>(store.current_assignments[store.current_pdag] | ranges::views::transform([](const auto& item){ return *item; }));
+            thread_store.current_assignment = ranges::to<std::vector<int>>(ranges::views::indirect(store.current_assignments[store.current_pdag]));
           }
           else {
-            const std::lock_guard<std::mutex> lock(store.ca_mutex);
             thread_store.next_task = Task::Nothing;
+
+            std::scoped_lock lock(store.ca_mutex);
             if (!increase_stack(store)) {
               if (store.current_pdag + 1 >= store.pdags.size())
               {
@@ -204,7 +207,7 @@ public:
 
             thread_store.pdag_index = store.current_pdag;
             thread_store.pdag = store.pdags[store.current_pdag];
-            thread_store.current_assignment = ranges::to<std::vector<int>>(store.current_assignments[store.current_pdag] | ranges::views::transform([](const auto& item){ return *item; }));
+            thread_store.current_assignment = ranges::to<std::vector<int>>(ranges::views::indirect(store.current_assignments[store.current_pdag]));
           }
 
           if (!formula_is_duplicate(store, thread_store) && _use_formula_callback != nullptr) {
