@@ -219,7 +219,7 @@ void runtime_test() {
         const auto tt = mockturtle::simulate<kitty::dynamic_truth_table>(*ntk, sim);
         const auto value = kitty::to_hex(tt[0]);
 
-        std::cout << fmt::format("{} {} {}!!", value, ) << std::endl;
+        std::cout << fmt::format("{} {} {}!!", value, 1, 1) << std::endl;
         if (goal == value) {
           std::cout << fmt::format("Found {}!!", value) << std::endl;
           solution["result"] = "solution";
