@@ -23,8 +23,8 @@
 
 #pragma once
 
+#include <_old_/enumerator.hpp>
 #include <copycat/ltl.hpp>
-#include <enumeration_tool/enumerator.hpp>
 
 enum class EnumerationSymbols
 {

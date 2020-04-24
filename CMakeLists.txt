@@ -20,5 +20,4 @@ target_compile_definitions(enumeration_tool INTERFACE)
 
 #add_subdirectory(examples)
 add_subdirectory(test)
-add_subdirectory(benchmark)
 add_subdirectory(experiments)

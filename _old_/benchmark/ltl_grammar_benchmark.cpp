@@ -1,10 +1,8 @@
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
+#include <_old_/enumerator_old.hpp>
 #include <catch.hpp>
-
-#include <enumeration_tool/enumerator_old.hpp>
-#include <enumeration_tool/symbol.hpp>
-
 #include <copycat/ltl.hpp>
+#include <enumeration_tool/symbol.hpp>
 
 enum class EnumerationSymbols
 {
@@ -41,7 +39,7 @@ public:
     return {NodeType::Var};
   }
 
-  node_callback_fn get_constructor_callback(NodeType t) override {
+  node_constructor_callback_fn get_constructor_callback(NodeType t) override {
     if (t == NodeType::Constant) { return [&]() -> EnumerationType { return get_constant(false); }; }
     if (t == NodeType::Not) { return [&](EnumerationType a) -> EnumerationType { return !a; }; }
     if (t == NodeType::X) { return [&](EnumerationType a) -> EnumerationType { return create_next(a); }; }
@@ -61,7 +59,7 @@ public:
     return {};
   }
 
-  node_callback_fn get_variable_callback(EnumerationType e) override {
+  node_constructor_callback_fn get_variable_callback(EnumerationType e) override {
     return [e]() { return e; };
   }
 
@@ -158,7 +156,7 @@ public:
     return {NodeType::Var};
   }
 
-  node_callback_fn get_constructor_callback(NodeType t) override {
+  node_constructor_callback_fn get_constructor_callback(NodeType t) override {
     if (t == NodeType::Constant) { return [&]() -> EnumerationType { return get_constant(false); }; }
     if (t == NodeType::Not) { return [&](EnumerationType a) -> EnumerationType { return !a; }; }
     if (t == NodeType::X) { return [&](EnumerationType a) -> EnumerationType { return create_next(a); }; }
@@ -182,7 +180,7 @@ public:
     return {};
   }
 
-  node_callback_fn get_variable_callback(EnumerationType e) override {
+  node_constructor_callback_fn get_variable_callback(EnumerationType e) override {
     return [e]() { return e; };
   }
 

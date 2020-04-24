@@ -1,10 +1,8 @@
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
-#include <catch.hpp>
-
-#include <enumeration_tool/enumerator_old.hpp>
-#include <enumeration_tool/symbol.hpp>
-
+#include <_old_/enumerator_old.hpp>
 #include <api/c++/z3++.h>
+#include <catch.hpp>
+#include <enumeration_tool/symbol.hpp>
 
 // in Z3 terms:
 // - a bool_const is a Var

@@ -1,12 +1,10 @@
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
 #include <catch.hpp>
 
-#include <enumeration_tool/enumerator_old.hpp>
+#include "enumerator.hpp"
 #include <enumeration_tool/symbol.hpp>
 
 #include <copycat/ltl.hpp>
-
-#include <set>
 
 enum class EnumerationSymbols
 {
@@ -26,7 +24,7 @@ public:
     return { NodeType::Var };
   }
 
-  node_callback_fn get_constructor_callback(NodeType t) override {
+  node_constructor_callback_fn get_constructor_callback(NodeType t) override {
     if (t == NodeType::Constant) { return [&]() -> EnumerationType { return get_constant(false); }; }
     if (t == NodeType::Not) { return [&](EnumerationType a) -> EnumerationType { return !a; }; }
     if (t == NodeType::X) { return [&](EnumerationType a) -> EnumerationType { return create_next(a); }; }
@@ -46,7 +44,7 @@ public:
     return {};
   }
 
-  node_callback_fn get_variable_callback(EnumerationType e) override {
+  node_constructor_callback_fn get_variable_callback(EnumerationType e) override {
     return [e](){ return e; };
   }
 
@@ -89,12 +87,12 @@ public:
   std::set<ltl_formula> formulas;
 };
 
-class ltl_enumerator : public enumeration_tool::enumerator<ltl_enumeration_store::ltl_formula> {
+class ltl_enumerator_test : public enumeration_tool_test::enumerator<ltl_enumeration_store::ltl_formula> {
 public:
   using store_t = ltl_enumeration_store;
   using formula_t = store_t::ltl_formula;
 
-  explicit ltl_enumerator(store_t& s, std::unordered_map<uint32_t, std::string>& v)
+  explicit ltl_enumerator_test(store_t& s, std::unordered_map<uint32_t, std::string>& v)
           : enumerator{ s.build_grammar()}, variable_names{v}, store{s} {}
 
   void use_formula() override {
@@ -113,60 +111,81 @@ public:
   uint32_t num_non_duplicate_formulas = 0;
 };
 
-TEST_CASE("LTL enumeration test", "[benchmark]") {
-  BENCHMARK_ADVANCED("cost3")(Catch::Benchmark::Chronometer meter) {
+TEST_CASE("accum_enumeration_test", "[benchmark]") {
+
+  BENCHMARK_ADVANCED("cost3")(Catch::Benchmark::Chronometer meter)
+  {
     ltl_enumeration_store store;
     std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({uint32_t{a.index}, "a"});
+    auto b = store.create_variable();
+    variable_names.insert({uint32_t{b.index}, "b"});
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 8; ++i) {
       store.create_variable();
     }
 
-    ltl_enumerator en(store, variable_names);
+    ltl_enumerator_test en(store, variable_names);
     meter.measure([&] { return en.enumerate(3); });
-//    std::cout << "#Formulas: " <<  en.num_formulas << std::endl;
-//    std::cout << "#NonDuplicate: " <<  en.num_non_duplicate_formulas << std::endl;
+    //state.counters["#Formulas"] = en.num_formulas;
+    //state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
   };
 
-  BENCHMARK_ADVANCED("cost4")(Catch::Benchmark::Chronometer meter) {
+  BENCHMARK_ADVANCED("cost4")(Catch::Benchmark::Chronometer meter)
+  {
     ltl_enumeration_store store;
     std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 8; ++i) {
       store.create_variable();
     }
 
-    ltl_enumerator en(store, variable_names);
+    ltl_enumerator_test en(store, variable_names);
     meter.measure([&] { return en.enumerate(4); });
-//    std::cout << "#Formulas: " <<  en.num_formulas << std::endl;
-//    std::cout << "#NonDuplicate: " <<  en.num_non_duplicate_formulas << std::endl;
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
   };
 
-  BENCHMARK_ADVANCED("cost5")(Catch::Benchmark::Chronometer meter) {
+  BENCHMARK_ADVANCED("cost5")(Catch::Benchmark::Chronometer meter)
+  {
     ltl_enumeration_store store;
     std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 8; ++i) {
       store.create_variable();
     }
 
-    ltl_enumerator en(store, variable_names);
+    ltl_enumerator_test en(store, variable_names);
     meter.measure([&] { return en.enumerate(5); });
-  //    std::cout << "#Formulas: " <<  en.num_formulas << std::endl;
-  //    std::cout << "#NonDuplicate: " <<  en.num_non_duplicate_formulas << std::endl;
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
   };
 
-  BENCHMARK_ADVANCED("cost6")(Catch::Benchmark::Chronometer meter) {
+  BENCHMARK_ADVANCED("cost6")(Catch::Benchmark::Chronometer meter)
+  {
     ltl_enumeration_store store;
     std::unordered_map<uint32_t, std::string> variable_names;
+    auto a = store.create_variable();
+    variable_names.insert({ uint32_t{ a.index }, "a" });
+    auto b = store.create_variable();
+    variable_names.insert({ uint32_t{ b.index }, "b" });
 
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 8; ++i) {
       store.create_variable();
     }
 
-    ltl_enumerator en(store, variable_names);
+    ltl_enumerator_test en(store, variable_names);
     meter.measure([&] { return en.enumerate(6); });
-  //    std::cout << "#Formulas: " <<  en.num_formulas << std::endl;
-  //    std::cout << "#NonDuplicate: " <<  en.num_non_duplicate_formulas << std::endl;
+    // state.counters["#Formulas"] = en.num_formulas;
+    // state.counters["#NonDuplicate"] = en.num_non_duplicate_formulas;
   };
 }

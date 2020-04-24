@@ -21,15 +21,14 @@
  * SOFTWARE.
  */
 
-#include <enumeration_tool/symbol.hpp>
-#include <enumeration_tool/enumerator_old.hpp>
-
-#include <copycat/ltl.hpp>
-
 #include <iostream>
-#include <unordered_map>
 #include <set>
 #include <sstream>
+#include <unordered_map>
+
+#include <_old_/enumerator_old.hpp>
+#include <copycat/ltl.hpp>
+#include <enumeration_tool/symbol.hpp>
 
 enum class EnumerationSymbols
 {

@@ -21,13 +21,12 @@
  * SOFTWARE.
  */
 
-#include <enumeration_tool/symbol.hpp>
-#include <enumeration_tool/enumerator_old.hpp>
-
-#include <mockturtle/networks/xmg.hpp>
-
 #include <iostream>
 #include <unordered_map>
+
+#include <_old_/enumerator_old.hpp>
+#include <enumeration_tool/symbol.hpp>
+#include <mockturtle/networks/xmg.hpp>
 
 /*
 
