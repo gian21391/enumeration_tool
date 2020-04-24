@@ -35,20 +35,20 @@ class grammar
   using symbol_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>>;
 
   std::vector<SymbolType> _possible_root_symbols;
-  std::vector<SymbolType> _terminal_symbols;
+  int _nr_terminal_symbols;
   symbol_collection_t _symbols;
 
 
 public:
   explicit grammar(const symbol_collection_t& symbols, const std::vector<SymbolType>& possible_root_symbols, const std::vector<SymbolType>& terminal_symbols)
   : _possible_root_symbols{possible_root_symbols}
-  , _terminal_symbols{terminal_symbols}
+  , _nr_terminal_symbols(terminal_symbols.size())
   , _symbols{symbols}
   {}
 
   const enumeration_symbol<EnumerationType, NodeType, SymbolType>& operator[](std::size_t index) const
   {
-    if (index < _symbols.size())
+    if (index < _symbols.size() && index >= 0)
     {
       return _symbols[index];
     }
@@ -89,7 +89,7 @@ public:
     return nodes_indexes;
   }
 
-  const std::vector<SymbolType>& get_terminal_symbols() const { return _terminal_symbols; }
+  int get_num_terminal_symbols() const { return _nr_terminal_symbols; }
 
   [[nodiscard]]
   bool empty() const { return _symbols.empty(); }

@@ -545,7 +545,7 @@ protected:
     _dags[_current_dag].initialize_dfs_sequence();
 
     // initialize the possible assignments and the TTs
-    auto num_terminal_symbols = _symbols.get_terminal_symbols().size();
+    auto num_terminal_symbols = _symbols.get_num_terminal_symbols();
     _dags[_current_dag].foreach_vertex([&](const std::vector<int>& node, int  index) {
       _tts.emplace_back(num_terminal_symbols);
       _possible_assignments.emplace_back();
