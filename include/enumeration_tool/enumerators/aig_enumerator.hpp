@@ -44,50 +44,16 @@ public:
     return { A, B, C, And, And_F_TT, And_F_FT, And_T_FT, And_T_FF, And_F_FF, And_F_TF, And_T_TF };
   }
 
-  auto get_inputs() const -> std::vector<SymbolType> {
+  [[nodiscard]]
+  auto get_terminal_symbol_types() const -> std::vector<SymbolType> override {
     return { A, B, C };
-  }
-
-  auto get_output_constructor() -> output_callback_fn override
-  {
-    return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children)
-    {
-      assert(store);
-      for (const auto& child : children) {
-        store->create_po(child);
-      }
-    };
-  }
-
-  auto get_node_constructor(SymbolType t) -> node_callback_fn override {
-    if (t == False) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(false); }; }
-    if (t == True) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(true); }; }
-    if (t == Not) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !children[0]; };}
-    if (t == And) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], children[1]); };}
-    if (t == A) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("A"); };}
-    if (t == B) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("B"); }; }
-    if (t == C) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("C"); }; }
-    if (t == D) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("D"); }; }
-    if (t == E) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("E"); }; }
-    if (t == F) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("F"); }; }
-    if (t == G) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("G"); }; }
-    if (t == H) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("H"); }; }
-    if (t == I) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("I"); }; }
-    if (t == And_F_TT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], children[1]); };}
-    if (t == And_F_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], children[1]); };}
-    if (t == And_T_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], children[1]); };}
-    if (t == And_T_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], !children[1]); };}
-    if (t == And_F_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], !children[1]); };}
-    if (t == And_T_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], !children[1]); };}
-    if (t == And_F_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], !children[1]); };}
-    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
   [[nodiscard]]
   auto get_possible_children(SymbolType t) const -> std::vector<SymbolType> override
   {
     if (t == And || t ==  And_F_TT || t ==  And_F_FT || t ==  And_T_FT || t == And_F_TF || t == And_T_TF) {
-      return { False, And, A, B, C, And_F_TT, And_F_FT, And_T_FT, And_T_FF, And_F_FF, And_F_TF, And_T_TF };
+      return { False, And, A, B, C, And_T_FT, And_T_FF, And_T_TF };
     }
     if (t == And_T_FF || t == And_F_FF) {
       return { False, And, A, B, C, And_T_FT, And_T_FF, And_T_TF };
@@ -115,9 +81,67 @@ public:
   }
 
   [[nodiscard]]
-  auto get_possible_roots() const -> std::vector<SymbolType> override
+  auto get_possible_roots_types() const -> std::vector<SymbolType> override
   {
     return { False, And, A, B, C, And_F_TT, And_F_FT, And_T_FT, And_T_FF, And_F_FF, And_F_TF, And_T_TF };
+  }
+
+  // for constructing the aig_network
+
+  auto get_output_constructor() -> output_callback_fn override
+  {
+    return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children)
+    {
+      assert(store);
+      for (const auto& child : children) {
+        store->create_po(child);
+      }
+    };
+  }
+
+  auto get_node_constructor(SymbolType t) -> node_constructor_callback_fn override {
+    if (t == False) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(false); }; }
+    if (t == True) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(true); }; }
+    if (t == Not) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !children[0]; };}
+    if (t == And) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], children[1]); };}
+    if (t == A) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("A"); };}
+    if (t == B) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("B"); }; }
+    if (t == C) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("C"); }; }
+    if (t == D) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("D"); }; }
+    if (t == E) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("E"); }; }
+    if (t == F) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("F"); }; }
+    if (t == G) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("G"); }; }
+    if (t == H) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("H"); }; }
+    if (t == I) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("I"); }; }
+    if (t == And_F_TT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], children[1]); };}
+    if (t == And_F_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], children[1]); };}
+    if (t == And_T_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], children[1]); };}
+    if (t == And_T_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], !children[1]); };}
+    if (t == And_F_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], !children[1]); };}
+    if (t == And_T_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], !children[1]); };}
+    if (t == And_F_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], !children[1]); };}
+    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
+  }
+
+  // for simulation
+
+  auto get_node_operation(SymbolType t) -> node_operation_callback_fn override
+  {
+    if (t == False) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, false)); return tt; };}
+    if (t == True) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, true)); return tt; };}
+    if (t == Not) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 1); return ~tts[0]; };}
+    if (t == And) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return tts[0] & tts[1]; };}
+    if (t == A) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 0)); return tt; };}
+    if (t == B) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 1)); return tt; };}
+    if (t == C) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 2)); return tt; };}
+    if (t == And_F_TT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~(tts[0] & tts[1]); };}
+    if (t == And_F_FT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~((~tts[0]) & tts[1]); };}
+    if (t == And_T_FT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ((~tts[0]) & tts[1]); };}
+    if (t == And_T_FF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ((~tts[0]) & (~tts[1])); };}
+    if (t == And_F_TF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~(tts[0] & (~tts[1])); };}
+    if (t == And_T_TF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return (tts[0] & (~tts[1])); };}
+    if (t == And_F_FF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~((~tts[0]) & (~tts[1])); };}
+    throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
 };

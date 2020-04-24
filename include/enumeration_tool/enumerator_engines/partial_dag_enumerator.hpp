@@ -50,12 +50,13 @@ public:
     Nothing, NextDag, NextAssignment, StopEnumeration, DoNotIncrease
   };
 
-  using callback_t = std::function<std::pair<bool, std::string>(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*, const std::shared_ptr<EnumerationType>&)>;
+  using callback_t = std::function<std::pair<bool, std::string>(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*)>;
 
   partial_dag_enumerator(
     const grammar<EnumerationType, NodeType, SymbolType>& symbols,
     std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> interface,
-    callback_t use_formula_callback = nullptr)
+    callback_t use_formula_callback = nullptr
+    )
     : _symbols{ symbols }
     , _interface{ interface }
     , _use_formula_callback{ use_formula_callback }
@@ -114,7 +115,7 @@ public:
       percy::partial_dag g = item;
 
       _dags.clear();
-      _dags.push_back(g);
+      _dags.emplace_back(g);
       _current_dag = 0;
       initialize();
 
@@ -136,7 +137,8 @@ public:
         }
 
         if (!formula_is_duplicate() && _use_formula_callback != nullptr) {
-          auto result = _use_formula_callback(this, to_enumeration_type());
+          update_tts();
+          auto result = _use_formula_callback(this);
           duplicate_accumulation(result.second);
         }
 
@@ -152,9 +154,81 @@ public:
     }
   }
 
+  kitty::dynamic_truth_table get_root_tt() {
+    return _tts[_dags[_current_dag].get_last_vertex_index()];
+  }
+
+  auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
+  {
+//    START_CLOCK();
+
+    _interface->construct();
+    // the unsigned here represents the index in the vector obtained from get_symbol_types()
+    std::unordered_map<unsigned, NodeType> leaf_nodes;
+    std::unordered_map<unsigned, NodeType> sub_components;
+
+    // adding all possible inputs to the network this is needed because otherwise there is no relation between the signal and the position in the TT
+    NodeType formula;
+    for (int i = 0; i < _symbols.size(); ++i) {
+      if (_symbols[i].num_children == 0) { // this is a leaf
+        formula = _symbols[i].node_constructor(_interface->_shared_object_store, {});
+        leaf_nodes.emplace(i, formula);
+      }
+    }
+
+    auto node = _dags[_current_dag].get_last_vertex();
+    auto index = _dags[_current_dag].get_last_vertex_index();
+    NodeType head_node = create_node(leaf_nodes, sub_components, node, index);
+
+    auto output_constructor = _interface->get_output_constructor();
+    output_constructor(_interface->_shared_object_store, {head_node});
+
+//    ACCUMULATE_TIME(to_enumeration_type_time);
+    return _interface->_shared_object_store;
+  }
+
 protected:
 
-  auto create_node(std::unordered_map<unsigned, NodeType>& leaf_nodes, std::unordered_map<unsigned, NodeType>& sub_components, std::vector<int> node, int index) -> NodeType {
+  void update_tts() {
+    auto node = _dags[_current_dag].get_last_vertex();
+    auto index = _dags[_current_dag].get_last_vertex_index();
+    update_tt(node, index);
+  }
+
+  void update_tt(const std::vector<int>& node, int index) {
+
+    // TODO: do not update things that do not need to be updated
+
+    std::vector<int> non_zero_nodes;
+
+    // now lets construct the children nodes
+    std::for_each(node.begin(), node.end(), [&](int input){
+      if (input == 0) { // ignored input node
+        return;
+      }
+      non_zero_nodes.emplace_back(input);
+
+      update_tt(_dags[_current_dag].get_vertex(input - 1), input - 1);
+    });
+
+    if (non_zero_nodes.empty()) { // end node
+      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({});
+    }
+    else if (non_zero_nodes.size() == 1) {
+      auto child = _tts[non_zero_nodes[0] - 1];
+      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({child});
+    }
+    else if (non_zero_nodes.size() == 2) {
+      auto child0 = _tts[non_zero_nodes[0] - 1];
+      auto child1 = _tts[non_zero_nodes[1] - 1];
+      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
+    }
+    else {
+      throw std::runtime_error("Number of children of this node not supported in to_enumeration_type");
+    }
+  }
+
+  auto create_node(std::unordered_map<unsigned, NodeType>& leaf_nodes, std::unordered_map<unsigned, NodeType>& sub_components, const std::vector<int>& node, int index) -> NodeType {
     if (sub_components.find(index) != sub_components.end()) { // the element has already been created
       return sub_components.find(index)->second;
     }
@@ -210,35 +284,6 @@ protected:
     return formula;
   }
 
-  auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
-  {
-//    START_CLOCK();
-
-    _interface->construct();
-    // the unsigned here represents the index in the vector obtained from get_symbol_types()
-    std::unordered_map<unsigned, NodeType> leaf_nodes;
-    std::unordered_map<unsigned, NodeType> sub_components;
-
-    // adding all possible inputs to the network this is needed because otherwise there is no relation between the signal and the position in the TT
-    NodeType formula;
-    for (int i = _symbols.size() - 1; i >= 0; i--) {
-      if (_symbols[i].num_children == 0) { // this is a leaf
-        formula = _symbols[i].node_constructor(_interface->_shared_object_store, {});
-        leaf_nodes.emplace(i, formula);
-      }
-    }
-
-    auto node = _dags[_current_dag].get_last_vertex();
-    auto index = _dags[_current_dag].get_last_vertex_index();
-    NodeType head_node = create_node(leaf_nodes, sub_components, node, index);
-
-    auto output_constructor = _interface->get_output_constructor();
-    output_constructor(_interface->_shared_object_store, {head_node});
-
-//    ACCUMULATE_TIME(to_enumeration_type_time);
-    return _interface->_shared_object_store;
-  }
-
   auto duplicate_accumulation_check() -> bool
   {
     START_CLOCK();
@@ -283,8 +328,6 @@ protected:
       //TODO: manage same size
     }
 
-
-
     // minimal function already in the set && the current dag is larger -> duplicate
     if (accumulate) { //this flag has been set in the initialization
       START_CLOCK();
@@ -292,8 +335,6 @@ protected:
       assert(result.second);
       ACCUMULATE_TIME(accumulation_time);
     }
-
-
   }
 
   auto formula_is_duplicate() -> bool
@@ -391,6 +432,7 @@ protected:
 
       }
     }
+
 
     if (duplicate_accumulation_check()) {
       return true;
@@ -502,8 +544,10 @@ protected:
 
     _dags[_current_dag].initialize_dfs_sequence();
 
-    // initialize the possible assignments
+    // initialize the possible assignments and the TTs
+    auto num_terminal_symbols = _symbols.get_terminal_symbols().size();
     _dags[_current_dag].foreach_vertex([&](const std::vector<int>& node, int  index) {
+      _tts.emplace_back(num_terminal_symbols);
       _possible_assignments.emplace_back();
       auto nr_of_children = std::count_if(node.begin(), node.end(), [](int i){ return i > 0; });
 
@@ -610,6 +654,7 @@ public:
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
+  std::vector<kitty::dynamic_truth_table> _tts;
 
   // duplicate accumulation utilities
   // all duplicated are associated to a subnetwork that is then checked at initialization

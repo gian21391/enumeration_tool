@@ -27,6 +27,7 @@
 #include <chrono>
 #include <algorithm>
 #include <ctime>
+#include <sstream>
 
 #ifdef PERFORMANCE_MONITORING
   #define START_CLOCK() \
@@ -54,7 +55,7 @@ bool is_unique(std::vector<T> &x) { // this modifies the vector passed
   return std::adjacent_find( x.begin(), x.end() ) == x.end();
 }
 
-bool is_leaf_node(const std::vector<int> node) {
+inline bool is_leaf_node(const std::vector<int> node) {
   assert(!node.empty());
 
   if (node.size() == 2) {
@@ -62,6 +63,63 @@ bool is_leaf_node(const std::vector<int> node) {
   }
 
   return node[0] == 0 && std::adjacent_find(node.begin(), node.end(), std::not_equal_to<>()) == node.end();
+}
+
+inline std::string create_hex_string(int num_inputs, bool value)
+{
+  std::vector<std::string> hex_values = {"F", "0"};
+  std::stringstream ss;
+
+  if (value) {
+    for (int i = 0; i < (1 << (num_inputs - 2)); i++) {
+      ss << hex_values[0];
+    }
+  }
+  else {
+    for (int i = 0; i < (1 << (num_inputs - 2)); i++) {
+      ss << hex_values[1];
+    }
+  }
+
+  return ss.str();
+}
+
+inline std::string create_hex_string(int num_inputs, int input_index) {
+  assert(num_inputs > 1);
+  assert(input_index < num_inputs);
+
+  std::vector<std::string> hex_values = {"A", "C", "F", "0"};
+  std::stringstream ss;
+
+  if (input_index == 0) {
+    for (int i = 0; i < (1 << (num_inputs - 2)); i++) {
+      ss << hex_values[0];
+    }
+  }
+  else if (input_index == 1) {
+    for (int i = 0; i < (1 << (num_inputs - 2)); i++) {
+      ss << hex_values[1];
+    }
+  }
+  else {
+    int num_hex_values = 1 << (num_inputs - 2);
+    int groups_size = 1 << (input_index - 2);
+
+    bool flag = false; // invert this flag for changing the endianness
+    for (int i = 0; i < (num_hex_values/groups_size); ++i) {
+      for (int j = 0; j < groups_size; ++j) {
+        if (!flag) {
+          ss << hex_values[2];
+        }
+        else {
+          ss << hex_values[3];
+        }
+      }
+      flag = !flag;
+    }
+  }
+
+  return ss.str();
 }
 
 template<typename TimeT = std::chrono::milliseconds>

@@ -32,46 +32,42 @@
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class grammar
 {
-  using nodes_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>>;
+  using symbol_collection_t = std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>>;
 
-  std::vector<SymbolType> _root_nodes;
-  nodes_collection_t nodes;
-  unsigned long max_cardinality = 0;
+  std::vector<SymbolType> _possible_root_symbols;
+  std::vector<SymbolType> _terminal_symbols;
+  symbol_collection_t _symbols;
+
 
 public:
-  explicit grammar(const std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>>& symbols, const std::vector<SymbolType>& root_nodes)
-  : _root_nodes{root_nodes}
-  {
-    for (int i = 0; i < symbols.size(); i++) {
-      if (max_cardinality < symbols[i].num_children) {
-        max_cardinality = symbols[i].num_children;
-      }
-      nodes.emplace_back(symbols[i]);
-    }
-  }
+  explicit grammar(const symbol_collection_t& symbols, const std::vector<SymbolType>& possible_root_symbols, const std::vector<SymbolType>& terminal_symbols)
+  : _possible_root_symbols{possible_root_symbols}
+  , _terminal_symbols{terminal_symbols}
+  , _symbols{symbols}
+  {}
 
   const enumeration_symbol<EnumerationType, NodeType, SymbolType>& operator[](std::size_t index) const
   {
-    if (index < nodes.size())
+    if (index < _symbols.size())
     {
-      return nodes[index];
+      return _symbols[index];
     }
     throw std::runtime_error("Index out of bound!");
   }
 
   [[nodiscard]]
-  typename nodes_collection_t::size_type nodes_number() const { return nodes.size(); }
+  typename symbol_collection_t::size_type nodes_number() const { return _symbols.size(); }
 
-  const nodes_collection_t& get_nodes() const { return nodes; }
+  const symbol_collection_t& get_nodes() const { return _symbols; }
 
   [[nodiscard]]
   auto get_root_nodes_indexes() const -> std::vector<unsigned>
   {
     static std::vector<unsigned> root_nodes_indexes;
     if (root_nodes_indexes.empty()) {
-      for (auto i = 0ul; i < nodes.size(); i++) {
-        for (const auto& item : _root_nodes) {
-          if (nodes[i].type == item) {
+      for (auto i = 0ul; i < _symbols.size(); i++) {
+        for (const auto& item : _possible_root_symbols) {
+          if (_symbols[i].type == item) {
             root_nodes_indexes.emplace_back(i);
             break;
           }
@@ -85,34 +81,20 @@ public:
   std::vector<unsigned> get_nodes_indexes(uint32_t cardinality) const
   {
     std::vector<unsigned> nodes_indexes;
-    for (auto i = 0ul; i < nodes.size(); i++) {
-      if (nodes[i].num_children == cardinality) {
+    for (auto i = 0ul; i < _symbols.size(); i++) {
+      if (_symbols[i].num_children == cardinality) {
         nodes_indexes.emplace_back(i);
       }
     }
     return nodes_indexes;
   }
 
-  [[nodiscard]]
-  const std::vector<unsigned>& get_max_cardinality_node_indexes() const {
-    static std::vector<unsigned> nodes_indexes;
-    if (nodes_indexes.empty()) {
-      for (auto i = 0ul; i < nodes.size(); i++) {
-        if (nodes[i].num_children == max_cardinality) {
-          nodes_indexes.emplace_back(i);
-        }
-      }
-    }
-    return nodes_indexes;
-  }
+  const std::vector<SymbolType>& get_terminal_symbols() const { return _terminal_symbols; }
 
   [[nodiscard]]
-  unsigned int get_max_cardinality() const { return max_cardinality; }
+  bool empty() const { return _symbols.empty(); }
 
   [[nodiscard]]
-  bool empty() const { return nodes.empty(); }
-
-  [[nodiscard]]
-  std::size_t size() const { return nodes.size(); }
+  std::size_t size() const { return _symbols.size(); }
 
 };

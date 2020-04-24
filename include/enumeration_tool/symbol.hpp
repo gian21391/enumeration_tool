@@ -31,6 +31,8 @@
 #include <string>
 #include <vector>
 
+#include <kitty/dynamic_truth_table.hpp>
+
 template <typename EnumerationType, typename NodeType, typename SymbolType>
 class grammar;
 
@@ -47,7 +49,10 @@ public:
     no_signal_repetition  = 1 << 3,
     nary_idempotent       = 1 << 4,
     nary_commutative      = 1 << 5,
-    same_gate_exists      = 1 << 6
+    same_gate_exists      = 1 << 6,
+    absorpion             = 1 << 7,
+    distributive          = 1 << 8,
+    associativite         = 1 << 9
   };
 
   enumeration_attributes() {
@@ -77,15 +82,18 @@ protected:
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class enumeration_symbol { // this is the node
 public:
-  using constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_operation_callback_fn = std::function<kitty::dynamic_truth_table(const std::vector<kitty::dynamic_truth_table>&)>;
 
-  bool _terminal_symbol = true;
+  bool terminal_symbol = false;
   SymbolType type;
   std::vector<SymbolType> children;
   uint32_t num_children = 0;
   int32_t cost = 1;
-  constructor_callback_fn node_constructor;
   enumeration_attributes attributes;
+  node_constructor_callback_fn node_constructor;
+  node_operation_callback_fn node_operation;
+
 };
 
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
@@ -93,18 +101,22 @@ class enumeration_interface {
 public:
   std::shared_ptr<EnumerationType> _shared_object_store;
 
-  using node_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_operation_callback_fn = std::function<kitty::dynamic_truth_table(const std::vector<kitty::dynamic_truth_table>&)>;
   using output_callback_fn = std::function<void(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
 
   virtual auto get_symbol_types() const -> std::vector<SymbolType> = 0;
-  virtual auto get_node_constructor(SymbolType t) -> node_callback_fn = 0;
+  virtual auto get_terminal_symbol_types() const -> std::vector<SymbolType> = 0;
+  virtual auto get_node_constructor(SymbolType t) -> node_constructor_callback_fn = 0;
   virtual auto get_output_constructor() -> output_callback_fn = 0;
   virtual auto get_possible_children(SymbolType t) const -> std::vector<SymbolType> = 0;
-  virtual auto get_possible_roots() const -> std::vector<SymbolType> = 0;
+  virtual auto get_possible_roots_types() const -> std::vector<SymbolType> = 0;
   virtual uint32_t get_num_children(SymbolType t) const = 0;
   virtual int32_t get_node_cost(SymbolType t) const = 0;
-  virtual enumeration_attributes get_enumeration_attributes(SymbolType) { return {}; }
+  virtual auto get_enumeration_attributes(SymbolType) -> enumeration_attributes { return {}; }
   virtual auto symbol_type_to_string(SymbolType) -> std::string { return ""; }
+  // needed for simulation
+  virtual auto get_node_operation(SymbolType t) -> node_operation_callback_fn = 0;
 
   void construct()
   {
@@ -121,6 +133,8 @@ public:
     std::vector<enumeration_symbol<EnumerationType, NodeType, SymbolType>> symbols;
 
     auto node_types = get_symbol_types();
+    auto terminal_node_types = get_terminal_symbol_types();
+
     for (const auto& element : node_types)
     {
       enumeration_symbol<EnumerationType, NodeType, SymbolType> symbol;
@@ -128,10 +142,14 @@ public:
       symbol.children = get_possible_children(element);
       symbol.num_children = get_num_children(element);
       symbol.node_constructor = get_node_constructor(element);
+      symbol.node_operation = get_node_operation(element);
       symbol.attributes = get_enumeration_attributes(element);
+      if (std::find(terminal_node_types.begin(), terminal_node_types.end(), element) != terminal_node_types.end()) { // this is a terminal symbol
+        symbol.terminal_symbol = true;
+      }
       symbols.emplace_back(symbol);
     }
 
-    return grammar<EnumerationType, NodeType, SymbolType>(symbols, get_possible_roots());
+    return grammar<EnumerationType, NodeType, SymbolType>(symbols, get_possible_roots_types(), get_terminal_symbol_types());
   }
 };

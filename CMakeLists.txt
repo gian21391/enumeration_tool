@@ -18,7 +18,7 @@ target_include_directories(enumeration_tool INTERFACE include)
 target_link_libraries(enumeration_tool INTERFACE nauty kitty fmt iterator_tpl magic_enum json range-v3 ${TBB_IMPORTED_TARGETS})
 target_compile_definitions(enumeration_tool INTERFACE)
 
-add_subdirectory(examples)
+#add_subdirectory(examples)
 add_subdirectory(test)
 add_subdirectory(benchmark)
 add_subdirectory(experiments)

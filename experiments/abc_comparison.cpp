@@ -33,6 +33,8 @@
 #include <iomanip>
 #include <sstream>
 
+using enumerator_t = enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>;
+
 void runtime_test();
 
 auto generate_tts(uint32_t var_num, uint32_t tts_num) -> std::vector<std::pair<kitty::dynamic_truth_table, std::string>> {
@@ -52,9 +54,9 @@ auto generate_tts(uint32_t var_num, uint32_t tts_num) -> std::vector<std::pair<k
 auto main() -> int
 {
 
-  runtime_test();
+//  runtime_test();
 
-  return 0;
+//  return 0;
 
   int min_vertices = 1;
   int max_vertices = 6;
@@ -94,12 +96,11 @@ auto main() -> int
     solution["dot"] = "";
     solution["aiger"] = "";
 
-    std::function<std::pair<bool, std::string>(enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>*, const std::shared_ptr<mockturtle::aig_network>&)>
+    std::function<std::pair<bool, std::string>(enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>*)>
       use_formula =
-      [&](enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>* enumerator, const std::shared_ptr<mockturtle::aig_network>& ntk) -> std::pair<bool, std::string> {
+      [&](enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>* enumerator) -> std::pair<bool, std::string> {
         num_num_formulas[i]++;
-        const auto tt = mockturtle::simulate<kitty::dynamic_truth_table>(*ntk, sim);
-        const auto value = kitty::to_hex(tt[0]);
+        const auto value = kitty::to_hex(enumerator->get_root_tt());
         /* DEBUG */
 //        if (enumerator->_initial_dag.get_vertices().size() == 4) {
 //          std::cout << value << std::endl;
@@ -112,7 +113,8 @@ auto main() -> int
           std::cout << fmt::format("Found {}!!", value) << std::endl;
 //          std::cout << enumerator->get_current_solution(true) << std::endl;
           std::stringstream aiger_output;
-          mockturtle::write_aiger(*ntk, aiger_output);
+          auto ntk = *(enumerator->to_enumeration_type());
+          mockturtle::write_aiger(ntk, aiger_output);
 //          std::cout << aiger_output.str() << "\n";
           solution["result"] = "solution";
           solution["num_formulas"] = num_num_formulas[i];
@@ -186,7 +188,6 @@ auto main() -> int
 
 
 void runtime_test() {
-  using enumerator_t = enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>;
 
   const int var_num = 3;
 //  const int num_formulas = 256;
@@ -222,14 +223,19 @@ void runtime_test() {
     solution["dot"] = "";
     solution["aiger"] = "";
 
-    std::function<std::pair<bool, std::string>(enumerator_t*, const std::shared_ptr<mockturtle::aig_network>&)> use_formula =
-      [&](enumerator_t* enumerator, const std::shared_ptr<mockturtle::aig_network>& ntk) -> std::pair<bool, std::string> {
+    std::function<std::pair<bool, std::string>(enumerator_t*)> use_formula =
+      [&](enumerator_t* enumerator) -> std::pair<bool, std::string> {
         obtained_num_formulas++;
-        mockturtle::aig_network item = *ntk;
+        mockturtle::aig_network item = *(enumerator->to_enumeration_type());
         const auto tt = mockturtle::simulate<kitty::dynamic_truth_table>(item, sim);
         const auto value = kitty::to_hex(tt[0]);
+        const auto value2 = kitty::to_hex(enumerator->get_root_tt());
         /* DEBUG */
-        // std::cout << value << std::endl;
+        if (value != value2) {
+          std::cout << value << " mine is: " << value2 << std::endl;
+          std::cout << fmt::format("{} {} {}", value, enumerator->_dags[0].get_vertices(), enumerator->get_current_assignment()) << std::endl;
+        }
+
 //        if (enumerator->_initial_dag.get_vertices().size() == 4 || true) {
 ////          std::cout << fmt::format("{} {} {}", value, enumerator->_dags[0].get_vertices(), enumerator->get_current_assignment()) << std::endl;
 //        }
