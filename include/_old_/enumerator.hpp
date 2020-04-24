@@ -23,14 +23,14 @@
 
 #pragma once
 
-#include "symbol.hpp"
-#include "utils.hpp"
-
-#include <vector>
-#include <utility>
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 #include <iterator>
+#include <utility>
+#include <vector>
+
+#include "enumeration_tool/symbol.hpp"
+#include "enumeration_tool/utils.hpp"
 
 namespace enumeration_tool
 {
