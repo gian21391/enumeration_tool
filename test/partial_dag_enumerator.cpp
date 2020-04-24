@@ -39,3 +39,54 @@ TEST_CASE( "simulator", "[partial_dag_enumerator]" )
   enumerator_t en(store.build_grammar(), generic_interface, use_formula);
   en.enumerate_aig_pre_enumeration(generated);
 }
+
+TEST_CASE( "get_minimal_index", "[partial_dag_enumerator]" )
+{
+  using EnumerationType = mockturtle::aig_network;
+  using NodeType = mockturtle::aig_network::signal;
+  using SymbolType = EnumerationSymbols;
+  using enumerator_t = enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>;
+
+  class test_enumerator : public enumerator_t {
+  public:
+    test_enumerator(
+      const grammar<EnumerationType, NodeType, SymbolType>& symbols,
+      std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> interface,
+      std::function<std::pair<bool, std::string>(test_enumerator*)> use_formula_callback = nullptr
+    )
+      : enumerator_t(symbols, interface, nullptr)
+      , new_formula_callback(use_formula_callback)
+    {
+      _use_formula_callback = [&](enumerator_t* enumerator) -> std::pair<bool, std::string> {
+        return new_formula_callback(this);
+      };
+    }
+
+    int invoke_get_minimal_index(int starting_index) {
+      return get_minimal_index(starting_index);
+    }
+
+    std::function<std::pair<bool, std::string>(test_enumerator*)> new_formula_callback;
+  };
+
+  int min_vertices = 1;
+  int max_vertices = 4;
+
+  std::vector<percy::partial_dag> generated = generate_dags(min_vertices, max_vertices);
+
+  std::function<std::pair<bool, std::string>(test_enumerator*)> use_formula =
+    [&](test_enumerator* enumerator) -> std::pair<bool, std::string> {
+      auto index = enumerator->invoke_get_minimal_index(enumerator->_dags[enumerator->_current_dag].get_last_vertex_index());
+      enumerator->_next_task = test_enumerator::Task::NextDag;
+      REQUIRE(index == 0);
+
+      return {false, "00"};
+    };
+
+  auto aig_interface = std::make_shared<aig_enumeration_interface>();
+  auto generic_interface = std::static_pointer_cast<enumeration_interface<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>>(aig_interface);
+
+  aig_enumeration_interface store;
+  test_enumerator en(store.build_grammar(), generic_interface, use_formula);
+  en.enumerate_aig_pre_enumeration(generated);
+}
