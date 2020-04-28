@@ -29,6 +29,7 @@
 #include <range/v3/core.hpp>
 #include <range/v3/view/transform.hpp>
 #include <range/v3/view/indirect.hpp>
+#include <robin_hood.h>
 
 #include "../grammar.hpp"
 #include "../partial_dag/partial_dag.hpp"
@@ -221,17 +222,15 @@ public:
 
 protected:
 
-  auto update_tts() -> int { // return true if the structure is duplicated
-    _tts_map.clear();
-    _tts_map.reserve(_dags[_current_dag].nr_vertices());
+  auto update_tts() -> int { // returns the index to increase or -1
     auto index = _dags[_current_dag].get_last_vertex_index();
 
     std::vector<int> minimal_indexes;
 
     auto check_inputs = [&](int index){
-      auto it = _tts_map.find(_tts[index].second);
-      if (it != _tts_map.end()) {
-        minimal_indexes.emplace_back(get_minimal_index(index));
+      auto it = _tts_map_inputs.find(_tts[index].second);
+      if (it != _tts_map_inputs.end()) {
+        minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
         simulation_duplicates++;
       }
     };
@@ -240,10 +239,14 @@ protected:
       auto it = minimal_sizes.find(_tts[index].second);
       if (it != minimal_sizes.end()) {
         if (_dags[_current_dag].get_cois()[index].size() > it->second) {
-          minimal_indexes.emplace_back(get_minimal_index(index));
+          minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
           simulation_duplicates++;
         }
       }
+    };
+
+    auto check_same_gate = [&](int index) {
+
     };
 
     std::function<void(int)> update_tt_ = [&](int index) {
@@ -263,7 +266,7 @@ protected:
 
       if (non_zero_nodes.empty()) { // end node
         _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({});
-        _tts_map.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
+        _tts_map_inputs.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
         _tts[index].first = true;
       }
       else if (non_zero_nodes.size() == 1) {
@@ -272,11 +275,8 @@ protected:
         _tts[index].first = true;
 
         if (_dags[_current_dag].nr_vertices() > 3) {
-          auto emplace_result = _tts_map.emplace(_tts[index].second, index);
-          if (!emplace_result.second) {
-            minimal_indexes.emplace_back(get_minimal_index(index));
-            simulation_duplicates++;
-          }
+          check_inputs(index);
+          check_coi(index);
         }
       }
       else if (non_zero_nodes.size() == 2) {
@@ -303,26 +303,6 @@ protected:
     }
 
     return -1;
-  }
-
-  auto get_minimal_index(int starting_index) -> int {
-    int minimal_index = starting_index;
-    const std::vector<std::vector<int>>& nodes = _dags[_current_dag].get_vertices();
-
-    std::function<void(int)> get_minimal_index_ = [&](int index){
-      if (minimal_index > index) {
-        minimal_index = index;
-      }
-      for (int j = 0; j < nodes[index].size(); ++j) {
-        if (nodes[index][j] != 0) {
-          get_minimal_index_(nodes[index][j] - 1);
-        }
-      }
-    };
-
-    get_minimal_index_(starting_index);
-
-    return minimal_index;
   }
 
   auto create_node(std::unordered_map<unsigned, NodeType>& leaf_nodes, std::unordered_map<unsigned, NodeType>& sub_components, const std::vector<int>& node, int index) -> NodeType {
@@ -492,10 +472,18 @@ protected:
       add_missing_nodes();
     }
 
+    // initialize DAG
+    _dags[_current_dag].nr_input_vertices = _dags[_current_dag].nr_vertices() - _initial_dag.nr_vertices();
     _dags[_current_dag].initialize_cois();
     _dags[_current_dag].construct_parents();
     _dags[_current_dag].initialize_dfs_sequence();
-//    _dags[_current_dag].initialize_vertices_having_2_PIs();
+    _dags[_current_dag].initialize_minimal_indices();
+
+    // initialize support structures
+    _tts_map_inputs.clear();
+    _tts_map_inputs.reserve(_dags[_current_dag].nr_vertices());
+    _tts_map_gates.clear();
+    _tts_map_gates.reserve(_dags[_current_dag].nr_vertices());
 
     // initialize the possible assignments and the TTs
     _tts.clear();
@@ -546,6 +534,14 @@ protected:
       }
 
       _tts[index].first = false;
+
+      if (index < _dags[_current_dag].nr_input_vertices) {
+        _tts_map_inputs.erase(_tts[index].second);
+      }
+      else {
+        _tts_map_gates.erase(_tts[index].second);
+      }
+
       for (auto parent : parents[index]) {
         set_flags(parent);
       }
@@ -561,6 +557,7 @@ protected:
     bool increase_flag = false;
 
     std::vector<int> changed;
+    changed.reserve(_possible_assignments.size());
 
     if (position > 0) {
       for (int i = 0; i < position; ++i) {
@@ -595,6 +592,7 @@ protected:
     bool increase_flag = false;
 
     std::vector<int> changed;
+    changed.reserve(_possible_assignments.size());
 
     for (auto i = 0ul; i < _possible_assignments.size(); i++) {
       ++_current_assignments[i];
@@ -620,12 +618,13 @@ public:
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
-  std::unordered_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> _tts_map;
+  robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> _tts_map_inputs;
+  robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> _tts_map_gates;
 
   std::vector<std::vector<unsigned>::const_iterator> _current_assignments;
   std::vector<std::vector<unsigned>> _possible_assignments;
   std::vector<std::pair<bool, kitty::dynamic_truth_table>> _tts;
-  std::unordered_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
+  robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
   long to_enumeration_type_time = 0;
   struct timespec ts;
 

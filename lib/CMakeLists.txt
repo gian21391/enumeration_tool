@@ -42,3 +42,5 @@ endif()
 if (NOT TARGET range-v3)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/range-v3-0.10.0)
 endif()
+
+add_subdirectory(robin-hood-hashing-3.6.0)
