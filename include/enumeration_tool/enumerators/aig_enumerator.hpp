@@ -37,6 +37,7 @@ public:
   using EnumerationType = mockturtle::aig_network;
   using NodeType = mockturtle::aig_network::signal;
   using SymbolType = EnumerationSymbols;
+  using TruthTable = kitty::dynamic_truth_table;
 
   [[nodiscard]]
   auto get_symbol_types() const -> std::vector<SymbolType> override
@@ -127,20 +128,20 @@ public:
 
   auto get_node_operation(SymbolType t) -> node_operation_callback_fn override
   {
-    if (t == False) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, false)); return tt; };}
-    if (t == True) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, true)); return tt; };}
-    if (t == Not) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 1); return ~tts[0]; };}
-    if (t == And) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return tts[0] & tts[1]; };}
-    if (t == A) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 0)); return tt; };}
-    if (t == B) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 1)); return tt; };}
-    if (t == C) { return [&](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.empty()); int num_inputs = get_terminal_symbol_types().size(); kitty::dynamic_truth_table tt(num_inputs); kitty::create_from_hex_string(tt, create_hex_string(num_inputs, 2)); return tt; };}
-    if (t == And_F_TT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~(tts[0] & tts[1]); };}
-    if (t == And_F_FT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~((~tts[0]) & tts[1]); };}
-    if (t == And_T_FT) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ((~tts[0]) & tts[1]); };}
-    if (t == And_T_FF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ((~tts[0]) & (~tts[1])); };}
-    if (t == And_F_TF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~(tts[0] & (~tts[1])); };}
-    if (t == And_T_TF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return (tts[0] & (~tts[1])); };}
-    if (t == And_F_FF) { return [](const std::vector<kitty::dynamic_truth_table>& tts) -> kitty::dynamic_truth_table { assert(tts.size() == 2); return ~((~tts[0]) & (~tts[1])); };}
+    if (t == False) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::vector<TruthTable>& tts) mutable -> TruthTable { assert(tts.empty()); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), false)); created = true; } return tt; };}
+    if (t == True) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::vector<TruthTable>& tts) mutable -> TruthTable { assert(tts.empty()); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), true)); created = true; } return tt; };}
+    if (t == Not) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 1); return ~tts[0]; };}
+    if (t == And) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return tts[0] & tts[1]; };}
+    if (t == A) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::vector<TruthTable>& tts) mutable -> TruthTable { assert(tts.empty()); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 0)); created = true; } return tt; };}
+    if (t == B) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::vector<TruthTable>& tts) mutable -> TruthTable { assert(tts.empty()); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 1)); created = true; } return tt; };}
+    if (t == C) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::vector<TruthTable>& tts) mutable -> TruthTable { assert(tts.empty()); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 2)); created = true; } return tt; };}
+    if (t == And_F_TT) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ~(tts[0] & tts[1]); };}
+    if (t == And_F_FT) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ~((~tts[0]) & tts[1]); };}
+    if (t == And_T_FT) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ((~tts[0]) & tts[1]); };}
+    if (t == And_T_FF) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ((~tts[0]) & (~tts[1])); };}
+    if (t == And_F_TF) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ~(tts[0] & (~tts[1])); };}
+    if (t == And_T_TF) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return (tts[0] & (~tts[1])); };}
+    if (t == And_F_FF) { return [](const std::vector<TruthTable>& tts) -> TruthTable { assert(tts.size() == 2); return ~((~tts[0]) & (~tts[1])); };}
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
