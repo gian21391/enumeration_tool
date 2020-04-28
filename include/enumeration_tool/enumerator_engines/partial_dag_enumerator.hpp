@@ -60,7 +60,9 @@ public:
     : _symbols{ symbols }
     , _interface{ interface }
     , _use_formula_callback{ use_formula_callback }
-  {}
+  {
+    minimal_sizes.reserve(256);
+  }
 
   [[nodiscard]]
   auto get_current_assignment() const -> std::vector<int> {
@@ -219,7 +221,7 @@ public:
 
 protected:
 
-  int update_tts() { // return true if the structure is duplicated
+  auto update_tts() -> int { // return true if the structure is duplicated
     _tts_map.clear();
     _tts_map.reserve(_dags[_current_dag].nr_vertices());
     auto index = _dags[_current_dag].get_last_vertex_index();
@@ -303,7 +305,7 @@ protected:
     return -1;
   }
 
-  int get_minimal_index(int starting_index) {
+  auto get_minimal_index(int starting_index) -> int {
     int minimal_index = starting_index;
     const std::vector<std::vector<int>>& nodes = _dags[_current_dag].get_vertices();
 
@@ -387,15 +389,15 @@ protected:
     //TODO: determine the set of non minimal structures composed of 2 gates
 
     // used for same_gate_exists attribute
-    std::set<std::vector<int>> same_gate_exists_set;
+    static std::vector<int> positions(3, 0);
+    static std::vector<int> inputs;
+    inputs.reserve(3);
 
     for (int index = _dags[_current_dag].nr_vertices() - 1; index >= 0; --index) {
       auto node = _dags[_current_dag].get_vertices()[index];
       if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::commutative)) { // application only at the leaves - this needs to be generalized to all nodes and eventually signal the change of the structure
         // single level section
-        std::vector<int> positions(node.size(), 0);
-        std::vector<int> inputs;
-        inputs.reserve(node.size());
+        inputs.clear();
         for (int i = 0; i < node.size(); i++) {
           auto value = *(_current_assignments[node[i] - 1]);
           positions[i] = node[i] - 1;
@@ -412,33 +414,9 @@ protected:
         }
       }
 
-      if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::same_gate_exists)) {
-        std::vector<int> positions(node.size(), 0);
-        std::vector<int> inputs;
-        inputs.reserve(node.size() + 1);
-        for (int i = 0; i < node.size(); i++) {
-          auto value = *(_current_assignments[node[i] - 1]);
-          positions[i] = node[i] - 1;
-          if (_symbols[value].num_children == 0) {
-            inputs.emplace_back(value);
-          }
-        }
-        inputs.emplace_back(*(_current_assignments[index]));
-        if (inputs.size() == node.size() + 1) { // this gate has only PI as inputs
-          if (!same_gate_exists_set.insert(inputs).second) { // cannot insert -> same gate exists
-            // increase stack at the lowest position
-//            std::cout << fmt::format("Same gate: {}", get_current_assignment());
-            increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
-            return true;
-          }
-        }
-      }
-
       if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::idempotent)) {
         // leaves section
-        std::vector<int> positions(node.size(), 0);
-        std::vector<int> inputs;
-        inputs.reserve(node.size());
+        inputs.clear();
         for (int i = 0; i < node.size(); i++) {
           auto value = *(_current_assignments[node[i] - 1]);
           positions[i] = node[i] - 1;
@@ -453,25 +431,6 @@ protected:
           increase_stack_at_position(positions[1]);
           return true;
         }
-
-//        // nodes section
-//        {
-//          std::vector<int> inputs;
-//          inputs.reserve(3);
-//          for (int i = 0; i < node.size(); i++) {
-//            auto value = *(_current_assignments[node[i] - 1]);
-//            if (_symbols[value].num_children != 0) { // application only at the nodes
-//              auto subtree = get_subtree(node[i]);
-//              inputs.emplace_back(std::hash<std::vector<int>>{}(subtree));
-//            }
-//          }
-//          std::vector<int> copy = inputs;
-//          if (!is_unique(inputs)) {
-////            std::cout << fmt::format("Idempotent node: {}", inputs) << std::endl;
-//            return true;
-//          }
-//        }
-
       }
     }
 
@@ -536,6 +495,7 @@ protected:
     _dags[_current_dag].initialize_cois();
     _dags[_current_dag].construct_parents();
     _dags[_current_dag].initialize_dfs_sequence();
+//    _dags[_current_dag].initialize_vertices_having_2_PIs();
 
     // initialize the possible assignments and the TTs
     _tts.clear();
@@ -667,8 +627,6 @@ public:
   std::vector<std::pair<bool, kitty::dynamic_truth_table>> _tts;
   std::unordered_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
   long to_enumeration_type_time = 0;
-  long accumulation_check_time = 0;
-  long accumulation_time = 0;
   struct timespec ts;
 
 public:
