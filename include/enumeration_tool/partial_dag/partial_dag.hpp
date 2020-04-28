@@ -28,6 +28,8 @@ private:
   int fanin; /// The in-degree of vertices in the DAG
   std::vector<std::vector<int>> vertices;
   std::vector<unsigned> dfs_sequence; // 2|3|-1|-2|-2
+  std::vector<std::vector<int>> parents;
+  std::vector<std::vector<int>> cois;
 
 public:
   partial_dag()
@@ -64,6 +66,41 @@ public:
   }
 
   int get_fanin() { return fanin; }
+
+  void initialize_cois() {
+    cois = std::vector<std::vector<int>>{vertices.size()};
+
+    std::function<void(int, int)> update_cois = [&](int index, int current_index){
+      cois[index].emplace_back(current_index);
+      for (auto input : vertices[current_index]) {
+        if (input != 0) {
+          update_cois(index, input - 1);
+        }
+      }
+    };
+
+    for (int i = 0; i < vertices.size(); ++i) {
+      update_cois(i, i);
+    }
+  }
+
+  auto get_cois() -> const std::vector<std::vector<int>>& { return cois; }
+
+  void construct_parents() {
+    for (int i = 0; i < vertices.size(); ++i) {
+      parents.emplace_back();
+      for (int j = 0; j < vertices.size(); ++j) {
+        for (int k = 0; k < vertices[j].size(); ++k) {
+          if (vertices[j][k] == i + 1) {
+            parents[i].emplace_back(j);
+          }
+        }
+      }
+    }
+  }
+
+  [[nodiscard]]
+  const std::vector<std::vector<int>>& get_parents() const { return parents; }
 
   int nr_pi_fanins()
   {

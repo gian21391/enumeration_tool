@@ -64,7 +64,7 @@ public:
 
   [[nodiscard]]
   auto get_current_assignment() const -> std::vector<int> {
-    return ranges::views::indirect(_current_assignments);
+    return ranges::to<std::vector<int>>(ranges::views::indirect(_current_assignments));
   }
 
   [[nodiscard]]
@@ -110,23 +110,36 @@ public:
   void enumerate_aig_pre_enumeration(const std::vector<percy::partial_dag>& pdags)
   {
     current_dag_aig_pre_enumeration = -1;
-    for (const auto& item : pdags) {
-      std::cout << fmt::format("Graph {}", ++current_dag_aig_pre_enumeration) << std::endl;
-      percy::partial_dag g = item;
 
-      _dags.clear();
-      _dags.emplace_back(g);
-      _current_dag = 0;
-      initialize();
+    for (int i = -1; i < static_cast<int>(pdags.size()); ++i) {
+      std::cout << fmt::format("Graph {}", ++current_dag_aig_pre_enumeration) << std::endl;
+
+      if (i == -1) {
+//        continue;
+        _dags.clear();
+        _dags.emplace_back(pdags[0]);
+        _current_dag = 0;
+        initialize(false);
+      }
+      else {
+        _dags.clear();
+        _dags.emplace_back(pdags[i]);
+        _current_dag = 0;
+        initialize();
+      }
 
       while (true) {
+//        if (_dags[0].get_vertices().size() == 12 && *_current_assignments[11] == 3 /*&& *_current_assignments[10] == 3 && *_current_assignments[9] == 4 && *_current_assignments[8] == 8 && *_current_assignments[7] == 4 && *_current_assignments[6] == 8 && *_current_assignments[5] == 1*/) {
+//          bool stop_here = true;
+//        }
+
         if (_next_task == Task::NextDag) {
           _next_task = Task::Nothing;
           break;
         }
         if (_next_task == Task::NextAssignment) {
           _next_task = Task::Nothing;
-          if (!increase_stack_test()) {
+          if (!increase_stack()) {
             break;
           }
           continue;
@@ -136,17 +149,28 @@ public:
           break;
         }
 
-        if (!formula_is_duplicate() && _use_formula_callback != nullptr) {
-          update_tts();
-          auto result = _use_formula_callback(this);
-          duplicate_accumulation(result.second);
+        if (!formula_is_duplicate()) {
+          auto tts_result = update_tts();
+          if (minimal_sizes.find(get_root_tt()) == minimal_sizes.end()) {
+            minimal_sizes.insert({get_root_tt(), _dags[_current_dag].nr_vertices()});
+          }
+          if (tts_result > -1) {
+            increase_stack_at_position(tts_result);
+          }
+          else if (_use_formula_callback != nullptr) {
+            auto result = _use_formula_callback(this);
+          }
         }
 
         if (_next_task == Task::DoNotIncrease) {
           _next_task = Task::Nothing;
         }
+        else if (_next_task == Task::NextDag) {
+          _next_task = Task::Nothing;
+          break;
+        }
         else {
-          if (!increase_stack_test()) {
+          if (!increase_stack()) {
             break;
           }
         }
@@ -155,7 +179,7 @@ public:
   }
 
   kitty::dynamic_truth_table get_root_tt() {
-    return _tts[_dags[_current_dag].get_last_vertex_index()];
+    return _tts[_dags[_current_dag].get_last_vertex_index()].second;
   }
 
   auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
@@ -187,45 +211,116 @@ public:
     return _interface->_shared_object_store;
   }
 
-protected:
+  void npn_enumeration(const std::string& target_function) {
+    auto current_assignments = _current_assignments;
 
-  void update_tts() {
-    auto node = _dags[_current_dag].get_last_vertex();
-    auto index = _dags[_current_dag].get_last_vertex_index();
-    update_tt(node, index);
+
   }
 
-  void update_tt(const std::vector<int>& node, int index) {
+protected:
 
-    // TODO: do not update things that do not need to be updated
+  int update_tts() { // return true if the structure is duplicated
+    _tts_map.clear();
+    _tts_map.reserve(_dags[_current_dag].nr_vertices());
+    auto index = _dags[_current_dag].get_last_vertex_index();
 
-    std::vector<int> non_zero_nodes;
+    std::vector<int> minimal_indexes;
 
-    // now lets construct the children nodes
-    std::for_each(node.begin(), node.end(), [&](int input){
-      if (input == 0) { // ignored input node
-        return;
+    auto check_inputs = [&](int index){
+      auto it = _tts_map.find(_tts[index].second);
+      if (it != _tts_map.end()) {
+        minimal_indexes.emplace_back(get_minimal_index(index));
+        simulation_duplicates++;
       }
-      non_zero_nodes.emplace_back(input);
+    };
 
-      update_tt(_dags[_current_dag].get_vertex(input - 1), input - 1);
-    });
+    auto check_coi = [&](int index){
+      auto it = minimal_sizes.find(_tts[index].second);
+      if (it != minimal_sizes.end()) {
+        if (_dags[_current_dag].get_cois()[index].size() > it->second) {
+          minimal_indexes.emplace_back(get_minimal_index(index));
+          simulation_duplicates++;
+        }
+      }
+    };
 
-    if (non_zero_nodes.empty()) { // end node
-      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({});
+    std::function<void(int)> update_tt_ = [&](int index) {
+      std::vector<int> non_zero_nodes;
+
+      // now lets construct the children nodes
+      std::for_each(_dags[_current_dag].get_vertex(index).begin(), _dags[_current_dag].get_vertex(index).end(), [&](int input){
+        if (input == 0) { // ignored input node
+          return;
+        }
+        non_zero_nodes.emplace_back(input);
+
+        if (!_tts[input - 1].first) {
+          update_tt_(input - 1);
+        }
+      });
+
+      if (non_zero_nodes.empty()) { // end node
+        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({});
+        _tts_map.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
+        _tts[index].first = true;
+      }
+      else if (non_zero_nodes.size() == 1) {
+        auto child = _tts[non_zero_nodes[0] - 1].second;
+        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child});
+        _tts[index].first = true;
+
+        if (_dags[_current_dag].nr_vertices() > 3) {
+          auto emplace_result = _tts_map.emplace(_tts[index].second, index);
+          if (!emplace_result.second) {
+            minimal_indexes.emplace_back(get_minimal_index(index));
+            simulation_duplicates++;
+          }
+        }
+      }
+      else if (non_zero_nodes.size() == 2) {
+        auto child0 = _tts[non_zero_nodes[0] - 1].second;
+        auto child1 = _tts[non_zero_nodes[1] - 1].second;
+        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
+        _tts[index].first = true; // valid
+
+        if (_initial_dag.nr_vertices() > 3) {
+          check_inputs(index);
+          check_coi(index);
+        }
+      }
+      else {
+        throw std::runtime_error("Number of children of this node not supported in update_tts");
+      }
+    };
+
+    update_tt_(index);
+
+    auto to_increase = std::max_element(minimal_indexes.begin(), minimal_indexes.end());
+    if (to_increase != minimal_indexes.end()) {
+      return *to_increase;
     }
-    else if (non_zero_nodes.size() == 1) {
-      auto child = _tts[non_zero_nodes[0] - 1];
-      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({child});
-    }
-    else if (non_zero_nodes.size() == 2) {
-      auto child0 = _tts[non_zero_nodes[0] - 1];
-      auto child1 = _tts[non_zero_nodes[1] - 1];
-      _tts[index] = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
-    }
-    else {
-      throw std::runtime_error("Number of children of this node not supported in to_enumeration_type");
-    }
+
+    return -1;
+  }
+
+  int get_minimal_index(int starting_index) {
+    int minimal_index = starting_index;
+    const std::vector<std::vector<int>>& nodes = _dags[_current_dag].get_vertices();
+
+    std::function<void(int)> get_minimal_index_ = [&](int index){
+      if (minimal_index > index) {
+        minimal_index = index;
+      }
+      for (int j = 0; j < nodes[index].size(); ++j) {
+        if (nodes[index][j] != 0) {
+          get_minimal_index_(nodes[index][j] - 1);
+        }
+      }
+    };
+
+    get_minimal_index_(starting_index);
+
+    return minimal_index;
   }
 
   auto create_node(std::unordered_map<unsigned, NodeType>& leaf_nodes, std::unordered_map<unsigned, NodeType>& sub_components, const std::vector<int>& node, int index) -> NodeType {
@@ -282,59 +377,6 @@ protected:
     }
 
     return formula;
-  }
-
-  auto duplicate_accumulation_check() -> bool
-  {
-    START_CLOCK();
-
-    if (positions_in_current_assignment.empty()) { // the current graph doesn't contain the subgraph
-      return false;
-    }
-
-    for (const auto& positions : positions_in_current_assignment) {
-
-      std::vector<int> current_assignments_view;
-      for (const auto& position : positions) {
-        current_assignments_view.emplace_back(*(_current_assignments[position]));
-      }
-
-      auto search = duplicated_assignments.find(current_assignments_view);
-      if (search != duplicated_assignments.end()) {
-        increase_stack_at_position(positions[0]);
-        ACCUMULATE_TIME(accumulation_check_time);
-        return true; // if we reach this we found a duplicated
-      }
-    }
-
-    ACCUMULATE_TIME(accumulation_check_time);
-    return false;
-  }
-
-  auto duplicate_accumulation(const std::string& duplicate_function)
-  {
-    auto value = static_cast<unsigned>(std::stoul(duplicate_function, nullptr, 16));
-    if (minimal_sizes.find(value) == minimal_sizes.end()) {
-      minimal_sizes.insert({value, _initial_dag.get_vertices().size()});
-      return; // found new minimal function -> nothing left to do
-    }
-
-    // minimal function already in the set
-    assert(minimal_sizes.at(value) <= _initial_dag.get_vertices().size());
-
-    if (minimal_sizes.at(value) == _initial_dag.get_vertices().size())
-    {
-      return; // the size is equal -> despite being duplicate we do nothing at this stage
-      //TODO: manage same size
-    }
-
-    // minimal function already in the set && the current dag is larger -> duplicate
-    if (accumulate) { //this flag has been set in the initialization
-      START_CLOCK();
-      auto result = duplicated_assignments.insert(ranges::to<std::vector<int>>(_current_assignments | ranges::views::transform([](auto item){ return *item; })));
-      assert(result.second);
-      ACCUMULATE_TIME(accumulation_time);
-    }
   }
 
   auto formula_is_duplicate() -> bool
@@ -433,70 +475,10 @@ protected:
       }
     }
 
-
-    if (duplicate_accumulation_check()) {
-      return true;
-    }
-
     return false;
   }
 
-  auto get_subgraph(const std::vector<std::vector<int>>& graph, int starting_index) -> std::pair<std::vector<std::vector<int>>, std::vector<bool>> {
-    std::vector<std::vector<int>> result = graph;
-
-    if (starting_index == graph.size() - 1) {
-      return {result, std::vector<bool>(result.size(), true)};
-    }
-
-    std::vector<bool> to_grab(graph.size(), false);
-    to_grab[starting_index] = true;
-
-    for (const auto& item : graph[starting_index]) {
-      if (item > 0) {
-        get_subgraph_impl(graph, item - 1, to_grab);
-      }
-    }
-
-    std::vector<bool> to_grab_return = to_grab;
-
-    for (int i = 0; i < to_grab.size(); ++i) {
-      if (!to_grab[i]) {
-        result.erase(result.begin() + i);
-        to_grab.erase(to_grab.begin() + i);
-        for (auto start = result.begin() + i; start != result.end(); ++start){
-          for (auto& item : *start) {
-            if (item == i + 1) {
-              item = 0;
-            }
-            if (item > 0 && item > i) {
-              item--;
-            }
-          }
-        }
-        i--;
-      }
-    }
-
-    return {result, to_grab_return};
-  }
-
-  void get_subgraph_impl(const std::vector<std::vector<int>>& graph, int starting_index, std::vector<bool>& to_grab) {
-    std::vector<std::vector<int>> result;
-    to_grab[starting_index] = true;
-
-    for (const auto& item : graph[starting_index]) {
-      if (item > 0) {
-        get_subgraph_impl(graph, item - 1, to_grab);
-      }
-    }
-  }
-
-  void initialize() {
-    accumulate = false;
-    positions_in_current_assignment.clear();
-    _current_assignments.clear();
-    _possible_assignments.clear();
-
+  void add_missing_nodes() {
     _initial_dag = _dags[_current_dag];
     auto new_dag = _dags[_current_dag];
     int added_elements = 0;
@@ -541,13 +523,26 @@ protected:
     }
 
     _dags[_current_dag] = new_dag;
+  }
 
+  void initialize(bool add_nodes = true) {
+    _current_assignments.clear();
+    _possible_assignments.clear();
+
+    if (add_nodes) {
+      add_missing_nodes();
+    }
+
+    _dags[_current_dag].initialize_cois();
+    _dags[_current_dag].construct_parents();
     _dags[_current_dag].initialize_dfs_sequence();
 
     // initialize the possible assignments and the TTs
+    _tts.clear();
+    _tts.reserve(_dags[_current_dag].nr_vertices());
     auto num_terminal_symbols = _symbols.get_num_terminal_symbols();
     _dags[_current_dag].foreach_vertex([&](const std::vector<int>& node, int  index) {
-      _tts.emplace_back(num_terminal_symbols);
+      _tts.emplace_back(false, num_terminal_symbols);
       _possible_assignments.emplace_back();
       auto nr_of_children = std::count_if(node.begin(), node.end(), [](int i){ return i > 0; });
 
@@ -580,39 +575,44 @@ protected:
       }
     }
 
-    // initialize duplicate accumulation
-    const auto& vertices = _dags[_current_dag].get_vertices();
-    for (int j = vertices.size() - 2; j >= 0; --j ) { // this check doesn't start from the root for now
-      auto result = get_subgraph(vertices, j);
-      if (result.first == subgraphs[1]) {
-        positions_in_current_assignment.emplace_back();
+  }
 
-        for (int k = 0; k < _current_assignments.size(); k++) {
-          if (result.second[k]) {
-            positions_in_current_assignment.back().emplace_back(k);
-          }
-        }
+  void set_tts_flags(const std::vector<int>& changed) {
+    const auto& parents = _dags[_current_dag].get_parents();
+
+    std::function<void(int)> set_flags = [&](int index){
+      if (!_tts[index].first) {
+        return;
       }
-    }
 
-    if (subgraphs[1] == vertices) { // just for this specific structure right now
-      accumulate = true;
-    }
+      _tts[index].first = false;
+      for (auto parent : parents[index]) {
+        set_flags(parent);
+      }
+    };
 
+    for (auto item : changed) {
+      set_flags(item);
+    }
   }
 
   auto increase_stack_at_position(unsigned position) -> bool // this function returns true if it was possible to increase the stack
   {
     bool increase_flag = false;
 
+    std::vector<int> changed;
+
     if (position > 0) {
       for (int i = 0; i < position; ++i) {
+        changed.emplace_back(i);
         _current_assignments[i] = _possible_assignments[i].begin();
       }
     }
 
     for (auto i = position; i < _possible_assignments.size(); i++) {
-      if (++_current_assignments[i] == _possible_assignments[i].end()) {
+      ++_current_assignments[i];
+      changed.emplace_back(i);
+      if (_current_assignments[i] == _possible_assignments[i].end()) {
         _current_assignments[i] = _possible_assignments[i].begin();
       } else {
         _next_task = Task::DoNotIncrease;
@@ -625,15 +625,21 @@ protected:
       _next_task = Task::NextDag;
     }
 
+    set_tts_flags(changed);
+
     return increase_flag;
   }
 
-  auto increase_stack_test() -> bool // this function returns true if it was possible to increase the stack
+  auto increase_stack() -> bool // this function returns true if it was possible to increase the stack
   {
     bool increase_flag = false;
 
+    std::vector<int> changed;
+
     for (auto i = 0ul; i < _possible_assignments.size(); i++) {
-      if (++_current_assignments[i] == _possible_assignments[i].end()) {
+      ++_current_assignments[i];
+      changed.emplace_back(i);
+      if (_current_assignments[i] == _possible_assignments[i].end()) {
         _current_assignments[i] = _possible_assignments[i].begin();
       } else {
         increase_flag = true;
@@ -641,32 +647,25 @@ protected:
       }
     }
 
+    set_tts_flags(changed);
+
     return increase_flag;
   }
 
 public:
   callback_t _use_formula_callback;
-  std::vector<std::vector<unsigned>::const_iterator> _current_assignments;
   std::size_t _current_dag = 0;
   std::vector<percy::partial_dag> _dags;
   percy::partial_dag _initial_dag;
-  std::vector<std::vector<unsigned>> _possible_assignments;
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
-  std::vector<kitty::dynamic_truth_table> _tts;
+  std::unordered_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> _tts_map;
 
-  // duplicate accumulation utilities
-  // all duplicated are associated to a subnetwork that is then checked at initialization
-  // the current implementation works for a single set
-  std::set<std::vector<int>> duplicated_assignments;
-  std::vector<std::vector<int>> positions_in_current_assignment; // for each subgraph
-  bool accumulate = false;
-  std::vector<std::vector<std::vector<int>>> subgraphs = {
-                                                          {{0, 0}, {0, 0}, {0, 0}, {2, 3}, {1, 4}},
-                                                          {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {3, 4}, {1, 2}, {5, 6}}
-                                                         };
-  std::unordered_map<unsigned, unsigned> minimal_sizes; // key: HEX value of the truth table converted to unsigned, value: minimal size
+  std::vector<std::vector<unsigned>::const_iterator> _current_assignments;
+  std::vector<std::vector<unsigned>> _possible_assignments;
+  std::vector<std::pair<bool, kitty::dynamic_truth_table>> _tts;
+  std::unordered_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
   long to_enumeration_type_time = 0;
   long accumulation_check_time = 0;
   long accumulation_time = 0;
@@ -675,6 +674,7 @@ public:
 public:
   int current_nr_gates;
   int current_dag_aig_pre_enumeration;
+  int simulation_duplicates = 0;
 };
 
 }
