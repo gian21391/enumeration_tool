@@ -301,8 +301,6 @@ void runtime_test() {
     }
 
     std::cout << "To enumeration type time: " << en.to_enumeration_type_time << std::endl;
-    std::cout << "Accumulation time: " << en.accumulation_time << std::endl;
-    std::cout << "Accumulation check time: " << en.accumulation_check_time << std::endl;
     std::cout << "Enumeration time: " << duration << std::endl;
     std::cout << "Num formulas: " << obtained_num_formulas << std::endl;
     solution["time"] = duration;
