@@ -40,8 +40,8 @@ public:
 
   [[nodiscard]]
   auto get_symbol_types() const -> std::vector<SymbolType> override
-  {//         0  1  2  3      4         5         6         7         8         9        10
-    return { A, B, C, And, And_F_TT, And_F_FT, And_T_FT, And_T_FF, And_F_FF, And_F_TF, And_T_TF };
+  {//          0    1  2  3   4        5         6         7         8         9        10
+    return { A, B, C, And, And_T_FT, And_T_FF, And_T_TF };
   }
 
   [[nodiscard]]
