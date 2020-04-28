@@ -246,7 +246,15 @@ protected:
     };
 
     auto check_same_gate = [&](int index) {
-
+      auto it = _tts_map_gates.find(_tts[index].second);
+      if (it != _tts_map_gates.end()) {
+        auto minimal_index = std::min(_dags[_current_dag].get_minimal_index(index), _dags[_current_dag].get_minimal_index(it->second));
+        minimal_indexes.emplace_back(minimal_index);
+        simulation_duplicates++;
+      }
+      else {
+        _tts_map_gates.emplace(_tts[index].second, index);
+      }
     };
 
     std::function<void(int)> update_tt_ = [&](int index) {
@@ -288,6 +296,7 @@ protected:
         if (_initial_dag.nr_vertices() > 3) {
           check_inputs(index);
           check_coi(index);
+          check_same_gate(index);
         }
       }
       else {
