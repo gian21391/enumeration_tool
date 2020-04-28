@@ -30,8 +30,11 @@ private:
   std::vector<unsigned> dfs_sequence; // 2|3|-1|-2|-2
   std::vector<std::vector<int>> parents;
   std::vector<std::vector<int>> cois;
+  std::vector<int> minimal_indices;
 
 public:
+  int nr_input_vertices = 0;
+
   partial_dag()
     : fanin(0)
   {
@@ -66,6 +69,33 @@ public:
   }
 
   int get_fanin() { return fanin; }
+
+  void initialize_minimal_indices() {
+    minimal_indices.reserve(vertices.size());
+
+    int minimal_index;
+
+    std::function<void(int)> get_minimal_index_ = [&](int index){
+      if (minimal_index > index) {
+        minimal_index = index;
+      }
+      for (int j = 0; j < vertices[index].size(); ++j) {
+        if (vertices[index][j] != 0) {
+          get_minimal_index_(vertices[index][j] - 1);
+        }
+      }
+    };
+
+    for (int i = 0; i < vertices.size(); ++i) {
+      minimal_index = i;
+      get_minimal_index_(minimal_index);
+      minimal_indices[i] = minimal_index;
+    }
+  }
+
+  auto get_minimal_index(int starting_index) -> int {
+    return minimal_indices[starting_index];
+  }
 
   void initialize_cois() {
     cois = std::vector<std::vector<int>>{vertices.size()};
