@@ -31,6 +31,7 @@ private:
   std::vector<std::vector<int>> parents;
   std::vector<std::vector<int>> cois;
   std::vector<int> minimal_indices;
+  std::vector<int> num_children;
 
 public:
   int nr_input_vertices = 0;
@@ -69,6 +70,21 @@ public:
   }
 
   int get_fanin() { return fanin; }
+
+  void initialize_num_children() {
+    num_children = std::vector<int>(vertices.size(), 0);
+
+    for (int i = 0; i < vertices.size(); ++i) {
+      for (auto input : vertices[i]) {
+        if (input == 0) { // ignored input node
+          continue;
+        }
+        num_children[i]++;
+      }
+    }
+  }
+
+  auto get_num_children(int index) -> int { return num_children[index]; }
 
   void initialize_minimal_indices() {
     minimal_indices.reserve(vertices.size());
