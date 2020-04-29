@@ -57,7 +57,7 @@ public:
     const grammar<EnumerationType, NodeType, SymbolType>& symbols,
     std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> interface,
     callback_t use_formula_callback = nullptr
-    )
+  )
     : _symbols{ symbols }
     , _interface{ interface }
     , _use_formula_callback{ use_formula_callback }
@@ -222,87 +222,88 @@ public:
 
 protected:
 
-  auto update_tts() -> int { // returns the index to increase or -1
-    auto index = _dags[_current_dag].get_last_vertex_index();
+  void check_same_gate(int index) {
+    auto it = _tts_map_gates.find(_tts[index].second);
+    if (it != _tts_map_gates.end()) {
+      auto minimal_index = std::min(_dags[_current_dag].get_minimal_index(index), _dags[_current_dag].get_minimal_index(it->second));
+      minimal_indexes.emplace_back(minimal_index);
+      simulation_duplicates++;
+    }
+    else {
+      _tts_map_gates.emplace(_tts[index].second, index);
+    }
+  };
 
-    std::vector<int> minimal_indexes;
-
-    auto check_inputs = [&](int index){
-      auto it = _tts_map_inputs.find(_tts[index].second);
-      if (it != _tts_map_inputs.end()) {
+  void check_coi(int index) {
+    auto it = minimal_sizes.find(_tts[index].second);
+    if (it != minimal_sizes.end()) {
+      if (_dags[_current_dag].get_cois()[index].size() > it->second) {
         minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
         simulation_duplicates++;
       }
-    };
+    }
+  };
 
-    auto check_coi = [&](int index){
-      auto it = minimal_sizes.find(_tts[index].second);
-      if (it != minimal_sizes.end()) {
-        if (_dags[_current_dag].get_cois()[index].size() > it->second) {
-          minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
-          simulation_duplicates++;
-        }
+  void check_inputs(int index) {
+    auto it = _tts_map_inputs.find(_tts[index].second);
+    if (it != _tts_map_inputs.end()) {
+      minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
+      simulation_duplicates++;
+    }
+  };
+
+  void update_tt_(int index) {
+    std::vector<int> non_zero_nodes; // recursive function -> this cannot be made static
+    non_zero_nodes.reserve(2);
+
+    // now lets construct the children nodes
+    for (auto input : _dags[_current_dag].get_vertex(index)) {
+      if (input == 0) { // ignored input node
+        break;
       }
-    };
+      non_zero_nodes.emplace_back(input);
 
-    auto check_same_gate = [&](int index) {
-      auto it = _tts_map_gates.find(_tts[index].second);
-      if (it != _tts_map_gates.end()) {
-        auto minimal_index = std::min(_dags[_current_dag].get_minimal_index(index), _dags[_current_dag].get_minimal_index(it->second));
-        minimal_indexes.emplace_back(minimal_index);
-        simulation_duplicates++;
+      if (!_tts[input - 1].first) {
+        update_tt_(input - 1);
       }
-      else {
-        _tts_map_gates.emplace(_tts[index].second, index);
+    }
+
+    if (non_zero_nodes.empty()) { // end node
+      _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({});
+      _tts_map_inputs.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
+      _tts[index].first = true;
+    }
+    else if (non_zero_nodes.size() == 1) {
+      const auto& child = _tts[non_zero_nodes[0] - 1].second;
+      _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child});
+      _tts[index].first = true;
+
+      if (_dags[_current_dag].nr_vertices() > 3) {
+        check_inputs(index);
+        check_coi(index);
       }
-    };
+    }
+    else if (non_zero_nodes.size() == 2) {
+      const auto& child0 = _tts[non_zero_nodes[0] - 1].second;
+      const auto& child1 = _tts[non_zero_nodes[1] - 1].second;
+      _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
+      _tts[index].first = true; // valid
 
-    std::function<void(int)> update_tt_ = [&](int index) {
-      std::vector<int> non_zero_nodes;
-
-      // now lets construct the children nodes
-      std::for_each(_dags[_current_dag].get_vertex(index).begin(), _dags[_current_dag].get_vertex(index).end(), [&](int input){
-        if (input == 0) { // ignored input node
-          return;
-        }
-        non_zero_nodes.emplace_back(input);
-
-        if (!_tts[input - 1].first) {
-          update_tt_(input - 1);
-        }
-      });
-
-      if (non_zero_nodes.empty()) { // end node
-        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({});
-        _tts_map_inputs.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
-        _tts[index].first = true;
+      if (_initial_dag.nr_vertices() > 3) {
+        check_inputs(index);
+        check_coi(index);
+        check_same_gate(index);
       }
-      else if (non_zero_nodes.size() == 1) {
-        auto child = _tts[non_zero_nodes[0] - 1].second;
-        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child});
-        _tts[index].first = true;
+    }
+    else {
+      throw std::runtime_error("Number of children of this node not supported in update_tts");
+    }
+  };
 
-        if (_dags[_current_dag].nr_vertices() > 3) {
-          check_inputs(index);
-          check_coi(index);
-        }
-      }
-      else if (non_zero_nodes.size() == 2) {
-        auto child0 = _tts[non_zero_nodes[0] - 1].second;
-        auto child1 = _tts[non_zero_nodes[1] - 1].second;
-        _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
-        _tts[index].first = true; // valid
+  auto update_tts() -> int { // returns the index to increase or -1
+    auto index = _dags[_current_dag].get_last_vertex_index();
 
-        if (_initial_dag.nr_vertices() > 3) {
-          check_inputs(index);
-          check_coi(index);
-          check_same_gate(index);
-        }
-      }
-      else {
-        throw std::runtime_error("Number of children of this node not supported in update_tts");
-      }
-    };
+    minimal_indexes.clear();
 
     update_tt_(index);
 
@@ -377,13 +378,8 @@ protected:
     //TODO: if the same gate with the same inputs exist -> discard
     //TODO: determine the set of non minimal structures composed of 2 gates
 
-    // used for same_gate_exists attribute
-    static std::vector<int> positions(3, 0);
-    static std::vector<int> inputs;
-    inputs.reserve(3);
-
     for (int index = _dags[_current_dag].nr_vertices() - 1; index >= 0; --index) {
-      auto node = _dags[_current_dag].get_vertices()[index];
+      const auto& node = _dags[_current_dag].get_vertices()[index];
       if (_symbols[*(_current_assignments[index])].attributes.is_set(enumeration_attributes::commutative)) { // application only at the leaves - this needs to be generalized to all nodes and eventually signal the change of the structure
         // single level section
         inputs.clear();
@@ -565,8 +561,7 @@ protected:
   {
     bool increase_flag = false;
 
-    std::vector<int> changed;
-    changed.reserve(_possible_assignments.size());
+    changed.clear();
 
     if (position > 0) {
       for (int i = 0; i < position; ++i) {
@@ -600,8 +595,7 @@ protected:
   {
     bool increase_flag = false;
 
-    std::vector<int> changed;
-    changed.reserve(_possible_assignments.size());
+    changed.clear();
 
     for (auto i = 0ul; i < _possible_assignments.size(); i++) {
       ++_current_assignments[i];
@@ -636,6 +630,16 @@ public:
   robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
   long to_enumeration_type_time = 0;
   struct timespec ts;
+
+  //increase stack resources (thread local)
+  std::vector<int> changed;
+
+  // update tts resources
+  std::vector<int> minimal_indexes;
+
+  // formula is duplicate resources
+  std::vector<int> positions = std::vector<int>(2, 0);
+  std::vector<int> inputs;
 
 public:
   int current_nr_gates;
