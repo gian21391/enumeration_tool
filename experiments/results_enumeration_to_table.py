@@ -9,7 +9,7 @@ mode = "release"
 # mode = "relwithdebinfo-cygwin"
 
 
-files = [f for f in os.listdir("../enumeration_tool/cmake-build-" + mode + "/experiments") if os.path.isfile(os.path.join("../enumeration_tool/cmake-build-" + mode + "/experiments", f))]
+files = [f for f in os.listdir("../cmake-build-" + mode + "/experiments") if os.path.isfile(os.path.join("../cmake-build-" + mode + "/experiments", f))]
 # print(files)
 relevant_files = []
 for item in files:
@@ -33,7 +33,7 @@ file = last_execution_result
 # new grammar
 # file = "results_parallel_1582056485.txt"
 
-with open(os.path.join("../enumeration_tool/cmake-build-" + mode + "/experiments", file), 'r') as f:
+with open(os.path.join("../cmake-build-" + mode + "/experiments", file), 'r') as f:
     data = json.load(f)
 
 # print(data)
@@ -50,23 +50,9 @@ max_time_function = ""
 
 
 for item in data:
-    if(item["target"] == "2d"):
-        print(item["solution"])
-        print(item["aiger"])
 
     if (item["result"] == "solution"):
-        m = re.search(r'Current assignment: ([\d, ]*)', item["solution"])
-        numbers = re.findall(r'\d+', m.group(1))
         num_gates = item["num_gates"]
-        if num_gates == 1:
-            one_gate_funcs.append(item["target"])
-
-        if num_gates == 2:
-            two_gates_funcs.append(item["target"])
-
-        if num_gates > 4:
-            # print(item["target"] + "\n")
-            pass
 
         if num_gates in listed_data:
             listed_data[num_gates]["number"] = listed_data[num_gates]["number"] + 1
@@ -84,11 +70,11 @@ for item in data:
     else:
         no_solution_funcs.append(item["target"])
 
-print(two_gates_funcs)
-print("One gate:")
-print(one_gate_funcs)
-print(listed_data)
-print(no_solution_funcs)
+# print(two_gates_funcs)
+# print("One gate:")
+# print(one_gate_funcs)
+# print(listed_data)
+
 
 for key in listed_data:
     listed_data[key]["total runtime"] = listed_data[key]["total runtime"] / 1000000
@@ -109,3 +95,5 @@ print(max_time_function)
 print(tabulate(table, headers=["#Gates", "#Functions", "Avg. Runtime"], tablefmt="latex"))
 
 print(tabulate(table2, headers=["#Gates", "#Functions", "Avg. Runtime", "Avg. num formulas"], tablefmt="plain"))
+if (len(no_solution_funcs) > 0):
+    print(no_solution_funcs)
