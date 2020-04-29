@@ -253,28 +253,24 @@ protected:
   };
 
   void update_tt_(int index) {
-    std::vector<int> non_zero_nodes; // recursive function -> this cannot be made static
-    non_zero_nodes.reserve(2);
-
     // now lets construct the children nodes
     for (auto input : _dags[_current_dag].get_vertex(index)) {
       if (input == 0) { // ignored input node
-        break;
+        continue;
       }
-      non_zero_nodes.emplace_back(input);
 
       if (!_tts[input - 1].first) {
         update_tt_(input - 1);
       }
     }
 
-    if (non_zero_nodes.empty()) { // end node
+    if (_dags[_current_dag].get_num_children(index) == 0) { // end node
       _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({});
       _tts_map_inputs.emplace(_tts[index].second, index); // this is an input -> we do nothing because we can have the same input at multiple nodes
       _tts[index].first = true;
     }
-    else if (non_zero_nodes.size() == 1) {
-      const auto& child = _tts[non_zero_nodes[0] - 1].second;
+    else if (_dags[_current_dag].get_num_children(index) == 1) {
+      const auto& child = _tts[_dags[_current_dag].get_vertices()[index][0] - 1].second;
       _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child});
       _tts[index].first = true;
 
@@ -283,9 +279,9 @@ protected:
         check_coi(index);
       }
     }
-    else if (non_zero_nodes.size() == 2) {
-      const auto& child0 = _tts[non_zero_nodes[0] - 1].second;
-      const auto& child1 = _tts[non_zero_nodes[1] - 1].second;
+    else if (_dags[_current_dag].get_num_children(index) == 2) {
+      const auto& child0 = _tts[_dags[_current_dag].get_vertices()[index][0] - 1].second;
+      const auto& child1 = _tts[_dags[_current_dag].get_vertices()[index][1] - 1].second;
       _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
       _tts[index].first = true; // valid
 
@@ -384,10 +380,10 @@ protected:
         // single level section
         inputs.clear();
         for (int i = 0; i < node.size(); i++) {
-          auto value = *(_current_assignments[node[i] - 1]);
           positions[i] = node[i] - 1;
-          if (_symbols[value].num_children == 0) {
-            inputs.emplace_back(value);
+          assert(_dags[_current_dag].get_num_children(node[i] - 1) == _symbols[*(_current_assignments[node[i] - 1])].num_children);
+          if (_dags[_current_dag].get_num_children(node[i] - 1) == 0) {
+            inputs.emplace_back(*(_current_assignments[node[i] - 1]));
           }
         }
         if (!std::is_sorted(inputs.begin(), inputs.end())) {
@@ -403,10 +399,9 @@ protected:
         // leaves section
         inputs.clear();
         for (int i = 0; i < node.size(); i++) {
-          auto value = *(_current_assignments[node[i] - 1]);
           positions[i] = node[i] - 1;
-          if (_symbols[value].num_children == 0) { // application only at the leaves - this needs to be generalized to all nodes and eventually signal the change of the structure
-            inputs.emplace_back(value);
+          if (_dags[_current_dag].get_num_children(node[i] - 1) == 0) { // application only at the leaves - this needs to be generalized to all nodes and eventually signal the change of the structure
+            inputs.emplace_back(*(_current_assignments[node[i] - 1]));
           }
         }
         if (!is_unique(inputs)) {
@@ -483,6 +478,7 @@ protected:
     _dags[_current_dag].construct_parents();
     _dags[_current_dag].initialize_dfs_sequence();
     _dags[_current_dag].initialize_minimal_indices();
+    _dags[_current_dag].initialize_num_children();
 
     // initialize support structures
     _tts_map_inputs.clear();
