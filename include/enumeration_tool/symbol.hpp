@@ -66,8 +66,8 @@ public:
   }
 
   [[nodiscard]]
-  bool is_set( uint32_t flag ) const {
-    auto value = attributes & flag;
+  bool is_set(EnumerationAttributeEnum flag) const {
+//    auto value = attributes & flag;
     return ( ( attributes & flag ) == flag );
   }
 
