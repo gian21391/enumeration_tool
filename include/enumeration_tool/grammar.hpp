@@ -46,14 +46,7 @@ public:
   , _symbols{symbols}
   {}
 
-  const enumeration_symbol<EnumerationType, NodeType, SymbolType>& operator[](std::size_t index) const
-  {
-    if (index < _symbols.size() && index >= 0)
-    {
-      return _symbols[index];
-    }
-    throw std::runtime_error("Index out of bound!");
-  }
+  const enumeration_symbol<EnumerationType, NodeType, SymbolType>& operator[](std::size_t index) const { return _symbols[index]; }
 
   [[nodiscard]]
   typename symbol_collection_t::size_type nodes_number() const { return _symbols.size(); }
