@@ -82,7 +82,7 @@ protected:
 template <typename EnumerationType, typename NodeType, typename SymbolType = uint32_t>
 class enumeration_symbol { // this is the node
 public:
-  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::initializer_list<NodeType>&)>;
   using node_operation_callback_fn = std::function<kitty::dynamic_truth_table(const std::initializer_list<std::reference_wrapper<const kitty::dynamic_truth_table>>&)>;
 
   bool terminal_symbol = false;
@@ -101,7 +101,7 @@ class enumeration_interface {
 public:
   std::shared_ptr<EnumerationType> _shared_object_store;
 
-  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
+  using node_constructor_callback_fn = std::function<NodeType(const std::shared_ptr<EnumerationType>&, const std::initializer_list<NodeType>&)>;
   using node_operation_callback_fn = std::function<kitty::dynamic_truth_table(const std::initializer_list<std::reference_wrapper<const kitty::dynamic_truth_table>>&)>;
   using output_callback_fn = std::function<void(const std::shared_ptr<EnumerationType>&, const std::vector<NodeType>&)>;
 

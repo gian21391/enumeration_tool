@@ -101,26 +101,26 @@ public:
   }
 
   auto get_node_constructor(SymbolType t) -> node_constructor_callback_fn override {
-    if (t == False) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(false); }; }
-    if (t == True) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(true); }; }
-    if (t == Not) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !children[0]; };}
-    if (t == And) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], children[1]); };}
-    if (t == A) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("A"); };}
-    if (t == B) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("B"); }; }
-    if (t == C) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("C"); }; }
-    if (t == D) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("D"); }; }
-    if (t == E) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("E"); }; }
-    if (t == F) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("F"); }; }
-    if (t == G) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("G"); }; }
-    if (t == H) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("H"); }; }
-    if (t == I) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("I"); }; }
-    if (t == And_F_TT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], children[1]); };}
-    if (t == And_F_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], children[1]); };}
-    if (t == And_T_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], children[1]); };}
-    if (t == And_T_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!children[0], !children[1]); };}
-    if (t == And_F_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(children[0], !children[1]); };}
-    if (t == And_T_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(children[0], !children[1]); };}
-    if (t == And_F_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::vector<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!children[0], !children[1]); };}
+    if (t == False) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(false); }; }
+    if (t == True) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->get_constant(true); }; }
+    if (t == Not) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !*(children.begin()); };}
+    if (t == And) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(*children.begin(), *(children.begin() + 1)); };}
+    if (t == A) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("A"); };}
+    if (t == B) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("B"); }; }
+    if (t == C) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("C"); }; }
+    if (t == D) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("D"); }; }
+    if (t == E) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("E"); }; }
+    if (t == F) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("F"); }; }
+    if (t == G) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("G"); }; }
+    if (t == H) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("H"); }; }
+    if (t == I) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(children.empty()); assert(store); return store->create_pi("I"); }; }
+    if (t == And_F_TT) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(*children.begin(), *(children.begin() + 1)); };}
+    if (t == And_F_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!*children.begin(), *(children.begin() + 1)); };}
+    if (t == And_T_FT) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!*children.begin(), *(children.begin() + 1)); };}
+    if (t == And_T_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(!*children.begin(), !*(children.begin() + 1)); };}
+    if (t == And_F_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(*children.begin(), !*(children.begin() + 1)); };}
+    if (t == And_T_TF) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return store->create_and(*children.begin(), !*(children.begin() + 1)); };}
+    if (t == And_F_FF) { return [](const std::shared_ptr<EnumerationType>& store, const std::initializer_list<NodeType>& children) -> NodeType { assert(!children.empty()); assert(store); return !store->create_and(!*children.begin(), !*(children.begin() + 1)); };}
     throw std::runtime_error("Unknown NodeType. Where did you get this type?");
   }
 
