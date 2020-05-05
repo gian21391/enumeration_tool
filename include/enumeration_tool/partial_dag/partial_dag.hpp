@@ -6,15 +6,17 @@
 
 #include <cassert>
 #include <fstream>
+#include <functional>
 #include <ostream>
 #include <set>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include <iterator_tpl.h>
 #include <nauty.h>
 
 #include "../utils.hpp"
-#include "tt_utils.hpp"
 
 namespace percy {
 /// Convention: the zero fanin keeps a node's fanin "free". This fanin will not
@@ -25,35 +27,27 @@ const int FANIN_PI = 0;
 class partial_dag
 {
 private:
-  int fanin; /// The in-degree of vertices in the DAG
+  int fanin = 0; /// The in-degree of vertices in the DAG
   std::vector<std::vector<int>> vertices;
   std::vector<unsigned> dfs_sequence; // 2|3|-1|-2|-2
   std::vector<std::vector<int>> parents;
   std::vector<std::vector<int>> cois;
   std::vector<int> minimal_indices;
   std::vector<int> num_children;
+  bool initialized = false;
 
 public:
-  int nr_input_vertices = 0;
+  int nr_PI_vertices = 0;
+  int nr_gates_vertices = 0;
 
-  partial_dag()
-    : fanin(0)
-  {
-  }
+  partial_dag() = default;
 
   partial_dag(int fanin, int nr_vertices = 0) { reset(fanin, nr_vertices); }
 
-  partial_dag(const partial_dag& dag)
-  {
-    fanin = dag.fanin;
-    vertices = dag.vertices;
-  }
-
-  partial_dag& operator=(const partial_dag& dag)
-  {
-    fanin = dag.fanin;
-    vertices = dag.vertices;
-    return *this;
+  partial_dag(std::vector<std::vector<int>> v) : vertices{std::move(v)} {
+    if (!vertices.empty()) {
+      fanin = vertices[0].size();
+    }
   }
 
   bool operator==(const partial_dag& b) const
@@ -63,13 +57,72 @@ public:
     return false;
   }
 
-  partial_dag(partial_dag&& dag)
-  {
-    fanin = dag.fanin;
-    vertices = std::move(dag.vertices);
+  void initialize() {
+    initialized = true;
+
+    if (vertices.size() == 1) {
+      nr_PI_vertices = 1;
+    }
+    else {
+      nr_PI_vertices = vertices.size() - nr_gates_vertices;
+    }
+
+    initialize_cois();
+    construct_parents();
+    initialize_dfs_sequence();
+    initialize_minimal_indices();
+    initialize_num_children();
   }
 
-  int get_fanin() { return fanin; }
+  void add_PI_nodes() {
+    partial_dag new_dag(vertices);
+    nr_gates_vertices = vertices.size();
+    int added_elements = 0;
+    int i = 0;
+
+    std::vector<int> added(new_dag.get_vertices().size(), 0);
+    while (i < new_dag.get_vertices().size()) {
+      for (i = added_elements; i < new_dag.get_vertices().size(); ++i) {
+        if (i < added_elements) {
+          continue;
+        }
+        for (int k = 0; k < new_dag.get_vertices()[i].size(); ++k) {
+          if (new_dag.get_vertices()[i][k] == 0) {
+            std::vector<int> new_node(new_dag.get_fanin(), 0);
+            new_dag.get_vertices().insert(new_dag.get_vertices().begin(), new_node);
+            added[i]++;
+            added_elements++;
+            added.emplace_back(0);
+            for (int j = added_elements; j < new_dag.get_vertices().size(); ++j) {
+              for (int l = 0; l < new_dag.get_vertices()[j].size(); ++l) {
+                if (new_dag.get_vertices()[j][l] > 0) {
+                  new_dag.get_vertices()[j][l]++;
+                }
+              }
+            }
+            new_dag.get_vertices()[i + added[i]][k] = 1;
+          }
+        }
+      }
+    }
+
+    for (int k = new_dag.get_vertices().size() - 1; k >= 0; --k) {
+      if (std::is_sorted(new_dag.get_vertices()[k].begin(), new_dag.get_vertices()[k].end())) {
+        continue;
+      }
+      const auto& child0 = new_dag.get_vertices()[new_dag.get_vertices()[k][0] - 1];
+      const auto& child1 = new_dag.get_vertices()[new_dag.get_vertices()[k][1] - 1];
+      if (!is_leaf_node(child0) || !is_leaf_node(child1)) {
+        continue;
+      }
+      std::swap(new_dag.get_vertices()[k][0], new_dag.get_vertices()[k][1]);
+    }
+
+    vertices = new_dag.vertices;
+  }
+
+  [[nodiscard]]
+  int get_fanin() const { return fanin; }
 
   void initialize_num_children() {
     num_children = std::vector<int>(vertices.size(), 0);
@@ -84,10 +137,31 @@ public:
     }
   }
 
-  auto get_num_children(int index) -> int { return num_children[index]; }
+  auto get_longest_path() {
+    int longest_path = 0;
+
+    std::function<void(int, int)> fold_ = [&](int index, int current_path){
+      if (current_path > longest_path) {
+        longest_path = current_path;
+      }
+      for (auto input : vertices[index]) {
+        if (input != 0) {
+          fold_(input - 1, current_path + 1);
+        }
+      }
+    };
+
+    const auto& head_index = vertices.size() - 1;
+
+    fold_(head_index, 0);
+
+    return longest_path;
+  }
+
+  auto get_num_children(int index) -> int { assert(initialized); return num_children[index]; }
 
   void initialize_minimal_indices() {
-    minimal_indices.reserve(vertices.size());
+    minimal_indices.resize(vertices.size());
 
     int minimal_index;
 
@@ -110,6 +184,7 @@ public:
   }
 
   auto get_minimal_index(int starting_index) -> int {
+    assert(initialized);
     return minimal_indices[starting_index];
   }
 
@@ -130,7 +205,7 @@ public:
     }
   }
 
-  auto get_cois() -> const std::vector<std::vector<int>>& { return cois; }
+  auto get_cois() -> const std::vector<std::vector<int>>& { assert(initialized); return cois; }
 
   void construct_parents() {
     for (int i = 0; i < vertices.size(); ++i) {
@@ -146,7 +221,7 @@ public:
   }
 
   [[nodiscard]]
-  const std::vector<std::vector<int>>& get_parents() const { return parents; }
+  auto get_parents() const -> const std::vector<std::vector<int>>& { assert(initialized); return parents; }
 
   int nr_pi_fanins()
   {
@@ -194,9 +269,10 @@ public:
     }
   }
 
-  std::vector<unsigned>& get_dfs_sequence() { return dfs_sequence; }
+  auto get_dfs_sequence() -> std::vector<unsigned>& { assert(initialized); return dfs_sequence; }
 
-  const std::vector<unsigned>& get_dfs_sequence() const { return dfs_sequence; }
+  [[nodiscard]]
+  auto get_dfs_sequence() const -> const std::vector<unsigned>& { assert(initialized); return dfs_sequence; }
 
   template <typename Fn>
   void foreach_vertex_dfs_call_on_zero(Fn&& fn) const
@@ -212,18 +288,18 @@ public:
     }
   }
 
-  template <typename Fn>
-  void foreach_vertex_dfs_call_on_zero(int starting_node, Fn&& fn) const
-  {
-    fn(vertices[starting_node], starting_node);
-    for (int i = 0; i < vertices[starting_node].size(); i++) {
-      auto index = vertices[starting_node][i] - 1;
-      if (index < 0)
-        fn({ starting_node, i }, -1);
-      else
-        foreach_vertex_dfs_call_on_zero(index, fn);
-    }
-  }
+//  template <typename Fn>
+//  void foreach_vertex_dfs_call_on_zero(int starting_node, Fn&& fn) const
+//  {
+//    fn(vertices[starting_node], starting_node);
+//    for (int i = 0; i < vertices[starting_node].size(); i++) {
+//      auto index = vertices[starting_node][i] - 1;
+//      if (index < 0)
+//        fn({ starting_node, i }, -1);
+//      else
+//        foreach_vertex_dfs_call_on_zero(index, fn);
+//    }
+//  }
 
   template <typename Fn>
   void foreach_vertex_dfs(Fn&& fn) const
@@ -233,31 +309,31 @@ public:
     }
   }
 
-  template <typename Fn>
-  void foreach_vertex_dfs(unsigned starting_node, Fn&& fn) const
-  {
-    auto i = 0ul;
-    for (; i < dfs_sequence.size(); i++) {
-      if (dfs_sequence[i] == starting_node)
-        break;
-    }
-    for (; i < dfs_sequence.size(); i++) {
-      fn(vertices[dfs_sequence[i]], dfs_sequence[i]);
-    }
-  }
+//  template <typename Fn>
+//  void foreach_vertex_dfs(unsigned starting_node, Fn&& fn) const
+//  {
+//    auto i = 0ul;
+//    for (; i < dfs_sequence.size(); i++) {
+//      if (dfs_sequence[i] == starting_node)
+//        break;
+//    }
+//    for (; i < dfs_sequence.size(); i++) {
+//      fn(vertices[dfs_sequence[i]], dfs_sequence[i]);
+//    }
+//  }
 
-  template <typename Fn>
-  void foreach_vertex_with_pi(Fn&& fn) const
-  {
-    for (auto i = 0ul; i < nr_vertices(); i++) {
-      for (auto input : vertices[i]) {
-        if (input == 0) {
-          fn(vertices[i], i);
-          break;
-        }
-      }
-    }
-  }
+//  template <typename Fn>
+//  void foreach_vertex_with_pi(Fn&& fn) const
+//  {
+//    for (auto i = 0ul; i < nr_vertices(); i++) {
+//      for (auto input : vertices[i]) {
+//        if (input == 0) {
+//          fn(vertices[i], i);
+//          break;
+//        }
+//      }
+//    }
+//  }
 
   template <typename Fn>
   void foreach_vertex(Fn&& fn) const
