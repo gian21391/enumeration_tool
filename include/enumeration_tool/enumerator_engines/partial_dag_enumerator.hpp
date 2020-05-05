@@ -51,7 +51,7 @@ public:
     Nothing, NextDag, NextAssignment, StopEnumeration, DoNotIncrease
   };
 
-  using callback_t = std::function<std::pair<bool, std::string>(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*)>;
+  using callback_t = std::function<void(partial_dag_enumerator<EnumerationType, NodeType, SymbolType>*)>;
 
   partial_dag_enumerator(
     const grammar<EnumerationType, NodeType, SymbolType>& symbols,
@@ -97,7 +97,7 @@ public:
       auto label = magic_enum::enum_name(_symbols[*(_current_assignments[index])].type);
 
       auto const dot_index = index + 1;
-      os << "n" << dot_index << " [label=<<sub>" << dot_index << "</sub> " << label << ">]\n";
+      os << "n" << dot_index << " [label=<<sub>" << dot_index << "</sub> " << label << "<sub>" << kitty::to_hex(_tts[index].second) << "</sub>" << ">]\n";
 
       for (const auto& child : v) {
         if (child != 0u) {
@@ -113,28 +113,22 @@ public:
   void enumerate_aig_pre_enumeration(const std::vector<percy::partial_dag>& pdags)
   {
     current_dag_aig_pre_enumeration = -1;
+    _dags.clear();
+    _dags.emplace_back();
+    assert(_dags.size() == 1);
+    _current_dag = 0;
 
-    for (int i = -1; i < static_cast<int>(pdags.size()); ++i) {
-      std::cout << fmt::format("Graph {}", ++current_dag_aig_pre_enumeration) << std::endl;
+    for (int i = 0; i < static_cast<int>(pdags.size()); ++i) {
+      ++current_dag_aig_pre_enumeration;
+      std::cout << fmt::format("Graph {}", current_dag_aig_pre_enumeration) << std::endl;
 
-      if (i == -1) {
-//        continue;
-        _dags.clear();
-        _dags.emplace_back(pdags[0]);
-        _current_dag = 0;
-        initialize(false);
-      }
-      else {
-        _dags.clear();
-        _dags.emplace_back(pdags[i]);
-        _current_dag = 0;
-        initialize();
-      }
+      _dags[_current_dag] = pdags[i];
+      initialize();
 
       while (true) {
-//        if (_dags[0].get_vertices().size() == 12 && *_current_assignments[11] == 3 /*&& *_current_assignments[10] == 3 && *_current_assignments[9] == 4 && *_current_assignments[8] == 8 && *_current_assignments[7] == 4 && *_current_assignments[6] == 8 && *_current_assignments[5] == 1*/) {
-//          bool stop_here = true;
-//        }
+        if (_dags[0].get_vertices().size() == 7 && *_current_assignments[6] == 6 && *_current_assignments[5] == 3 && *_current_assignments[4] == 3 /* && *_current_assignments[8] == 8 && *_current_assignments[7] == 4 && *_current_assignments[6] == 8 && *_current_assignments[5] == 1*/) {
+          bool stop_here = true;
+        }
 
         if (_next_task == Task::NextDag) {
           _next_task = Task::Nothing;
@@ -152,7 +146,8 @@ public:
           break;
         }
 
-        if (!formula_is_duplicate()) {
+        auto duplicate_result = formula_is_duplicate();
+        if (duplicate_result < 0) {
           auto tts_result = update_tts();
           if (minimal_sizes.find(get_root_tt()) == minimal_sizes.end()) {
             minimal_sizes.insert({get_root_tt(), _dags[_current_dag].nr_vertices()});
@@ -161,8 +156,11 @@ public:
             increase_stack_at_position(tts_result);
           }
           else if (_use_formula_callback != nullptr) {
-            auto result = _use_formula_callback(this);
+            _use_formula_callback(this);
           }
+        }
+        else {
+          increase_stack_at_position(duplicate_result);
         }
 
         if (_next_task == Task::DoNotIncrease) {
@@ -181,12 +179,11 @@ public:
     }
   }
 
-  kitty::dynamic_truth_table get_root_tt() {
+  auto get_root_tt() -> kitty::dynamic_truth_table {
     return _tts[_dags[_current_dag].get_last_vertex_index()].second;
   }
 
-  auto to_enumeration_type() -> std::shared_ptr<EnumerationType>
-  {
+  auto to_enumeration_type() -> std::shared_ptr<EnumerationType> {
 //    START_CLOCK();
 
     _interface->construct();
@@ -214,12 +211,6 @@ public:
     return _interface->_shared_object_store;
   }
 
-  void npn_enumeration(const std::string& target_function) {
-    auto current_assignments = _current_assignments;
-
-
-  }
-
 protected:
 
   void check_same_gate(int index) {
@@ -245,12 +236,15 @@ protected:
   };
 
   void check_inputs(int index) {
-    auto it = _tts_map_inputs.find(_tts[index].second);
-    if (it != _tts_map_inputs.end()) {
+    if (_tts_map_inputs.contains(_tts[index].second)) {
       minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
       simulation_duplicates++;
     }
   };
+
+  void check_same_size(int index) {
+
+  }
 
   void update_tt_(int index) {
     // now lets construct the children nodes
@@ -274,9 +268,10 @@ protected:
       _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child});
       _tts[index].first = true;
 
-      if (_dags[_current_dag].nr_vertices() > 3) {
+      if (_dags[_current_dag].nr_gates_vertices > 3) {
         check_inputs(index);
         check_coi(index);
+        check_same_gate(index);
       }
     }
     else if (_dags[_current_dag].get_num_children(index) == 2) {
@@ -285,7 +280,7 @@ protected:
       _tts[index].second = _symbols[*(_current_assignments[index])].node_operation({child0, child1});
       _tts[index].first = true; // valid
 
-      if (_initial_dag.nr_vertices() > 3) {
+      if (_dags[_current_dag].nr_gates_vertices > 3) {
         check_inputs(index);
         check_coi(index);
         check_same_gate(index);
@@ -367,12 +362,9 @@ protected:
     return formula;
   }
 
-  auto formula_is_duplicate() -> bool
+  auto formula_is_duplicate() -> int
   {
-    bool duplicated = false;
-
-    //TODO: if the same gate with the same inputs exist -> discard
-    //TODO: determine the set of non minimal structures composed of 2 gates
+    minimal_indexes.clear();
 
     for (int index = _dags[_current_dag].nr_vertices() - 1; index >= 0; --index) {
       const auto& node = _dags[_current_dag].get_vertices()[index];
@@ -387,11 +379,12 @@ protected:
           }
         }
         if (!std::is_sorted(inputs.begin(), inputs.end())) {
+          minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
           // increase stack at the lowest position
 //          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end()))); // general case
-          std::sort(positions.begin(), positions.end());
-          increase_stack_at_position(positions[1]);
-          return true;
+//          std::sort(positions.begin(), positions.end());
+//          increase_stack_at_position(positions[1]);
+//          return true;
         }
       }
 
@@ -407,84 +400,34 @@ protected:
         if (!is_unique(inputs)) {
           // specific to 2 gates
 //          increase_stack_at_position(*(std::min_element(positions.begin(), positions.end())));
-          std::sort(positions.begin(), positions.end());
-          increase_stack_at_position(positions[1]);
-          return true;
+//          std::sort(positions.begin(), positions.end());
+//          increase_stack_at_position(positions[1]);
+//          return true;
+          minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
         }
       }
     }
 
-    return false;
+    auto to_increase = std::max_element(minimal_indexes.begin(), minimal_indexes.end());
+    if (to_increase != minimal_indexes.end()) {
+      return *to_increase;
+    }
+
+    return -1;
   }
 
-  void add_missing_nodes() {
-    _initial_dag = _dags[_current_dag];
-    auto new_dag = _dags[_current_dag];
-    int added_elements = 0;
-    int i = 0;
-
-    std::vector<int> added(new_dag.get_vertices().size(), 0);
-    while (i < new_dag.get_vertices().size()) {
-      for (i = added_elements; i < new_dag.get_vertices().size(); ++i) {
-        if (i < added_elements) {
-          continue;
-        }
-        for (int k = 0; k < new_dag.get_vertices()[i].size(); ++k) {
-          if (new_dag.get_vertices()[i][k] == 0) {
-            std::vector<int> new_node(new_dag.get_fanin(), 0);
-            new_dag.get_vertices().insert(new_dag.get_vertices().begin(), new_node);
-            added[i]++;
-            added_elements++;
-            added.emplace_back(0);
-            for (int j = added_elements; j < new_dag.get_vertices().size(); ++j) {
-              for (int l = 0; l < new_dag.get_vertices()[j].size(); ++l) {
-                if (new_dag.get_vertices()[j][l] > 0) {
-                  new_dag.get_vertices()[j][l]++;
-                }
-              }
-            }
-            new_dag.get_vertices()[i + added[i]][k] = 1;
-          }
-        }
-      }
-    }
-
-    for (int k = new_dag.get_vertices().size() - 1; k >= 0; --k) {
-      if (std::is_sorted(new_dag.get_vertices()[k].begin(), new_dag.get_vertices()[k].end())) {
-        continue;
-      }
-      const auto& child0 = new_dag.get_vertices()[new_dag.get_vertices()[k][0] - 1];
-      const auto& child1 = new_dag.get_vertices()[new_dag.get_vertices()[k][1] - 1];
-      if (!is_leaf_node(child0) || !is_leaf_node(child1)) {
-        continue;
-      }
-      std::swap(new_dag.get_vertices()[k][0], new_dag.get_vertices()[k][1]);
-    }
-
-    _dags[_current_dag] = new_dag;
-  }
-
-  void initialize(bool add_nodes = true) {
+  void initialize() {
     _current_assignments.clear();
     _possible_assignments.clear();
-
-    if (add_nodes) {
-      add_missing_nodes();
-    }
-
-    // initialize DAG
-    _dags[_current_dag].nr_input_vertices = _dags[_current_dag].nr_vertices() - _initial_dag.nr_vertices();
-    _dags[_current_dag].initialize_cois();
-    _dags[_current_dag].construct_parents();
-    _dags[_current_dag].initialize_dfs_sequence();
-    _dags[_current_dag].initialize_minimal_indices();
-    _dags[_current_dag].initialize_num_children();
 
     // initialize support structures
     _tts_map_inputs.clear();
     _tts_map_inputs.reserve(_dags[_current_dag].nr_vertices());
     _tts_map_gates.clear();
     _tts_map_gates.reserve(_dags[_current_dag].nr_vertices());
+
+    seen_tts.clear();
+    seen_tts.reserve(_dags[_current_dag].nr_vertices());
 
     // initialize the possible assignments and the TTs
     _tts.clear();
@@ -536,7 +479,7 @@ protected:
 
       _tts[index].first = false;
 
-      if (index < _dags[_current_dag].nr_input_vertices) {
+      if (index < _dags[_current_dag].nr_PI_vertices) {
         _tts_map_inputs.erase(_tts[index].second);
       }
       else {
@@ -613,7 +556,6 @@ public:
   callback_t _use_formula_callback;
   std::size_t _current_dag = 0;
   std::vector<percy::partial_dag> _dags;
-  percy::partial_dag _initial_dag;
   const grammar<EnumerationType, NodeType, SymbolType> _symbols;
   std::shared_ptr<enumeration_interface<EnumerationType, NodeType, SymbolType>> _interface;
   Task _next_task = Task::Nothing;
@@ -624,6 +566,7 @@ public:
   std::vector<std::vector<unsigned>> _possible_assignments;
   std::vector<std::pair<bool, kitty::dynamic_truth_table>> _tts;
   robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
+  std::vector<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>>> seen_tts; // an hash map for each gate
   long to_enumeration_type_time = 0;
   struct timespec ts;
 
