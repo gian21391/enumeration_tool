@@ -67,11 +67,12 @@ inline auto generate_dags_heuristics(int min_vertices, int max_vertices) {
     if (i == 6) {
       //adding missing structure
       new_bunch.emplace_back(std::vector<std::vector<int>>{{0, 0}, {0, 0}, {1, 2}, {0, 3}, {0, 3}, {4, 5}});
+    }
 
-      for (const auto& item : new_bunch) {
-        std::cout << fmt::format("{}\n", item.get_vertices());
-        percy::to_dot(item, std::cout);
-      }
+    for (const auto& item : new_bunch) {
+//      std::cout << fmt::format("{}\n", item.get_vertices());
+      std::cout << percy::to_mathematica(item) << std::endl;
+//      percy::to_dot(item, std::cout);
     }
 
     generated.insert( generated.end(), new_bunch.begin(), new_bunch.end() );
