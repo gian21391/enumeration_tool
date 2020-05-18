@@ -126,7 +126,15 @@ public:
       initialize();
 
       while (true) {
-        if (_dags[0].get_vertices().size() == 7 && *_current_assignments[6] == 6 && *_current_assignments[5] == 3 && *_current_assignments[4] == 3 /* && *_current_assignments[8] == 8 && *_current_assignments[7] == 4 && *_current_assignments[6] == 8 && *_current_assignments[5] == 1*/) {
+        if (i == 8 && _dags[0].get_vertices().size() == 12 && *_current_assignments[11] == 5 && *_current_assignments[10] == 3 && *_current_assignments[9] == 5 && *_current_assignments[8] == 5 && *_current_assignments[7] == 3 && *_current_assignments[6] == 5 /* && *_current_assignments[5] == 1*/) {
+          bool stop_here = true;
+        }
+
+        if (i == 8 && _dags[0].get_vertices().size() == 12 && *_current_assignments[11] == 5 && *_current_assignments[10] == 6 && *_current_assignments[9] == 4 && *_current_assignments[8] == 5 && *_current_assignments[7] == 6 && *_current_assignments[6] == 4 /* && *_current_assignments[5] == 1*/) {
+          bool stop_here = true;
+        }
+
+        if (i == 8 && _dags[0].get_vertices().size() == 12 && *_current_assignments[11] == 5 && *_current_assignments[10] == 6 && *_current_assignments[9] == 4 && *_current_assignments[8] == 5 && *_current_assignments[7] == 4 && *_current_assignments[6] == 6 /* && *_current_assignments[5] == 1*/) {
           bool stop_here = true;
         }
 
@@ -150,13 +158,13 @@ public:
         if (duplicate_result < 0) {
           auto tts_result = update_tts();
           if (minimal_sizes.find(get_root_tt()) == minimal_sizes.end()) {
-            minimal_sizes.insert({get_root_tt(), _dags[_current_dag].nr_vertices()});
+            minimal_sizes.insert({get_root_tt(), _dags[_current_dag].nr_gates_vertices});
+          }
+          if (_use_formula_callback != nullptr) {
+            _use_formula_callback(this);
           }
           if (tts_result > -1) {
             increase_stack_at_position(tts_result);
-          }
-          else if (_use_formula_callback != nullptr) {
-            _use_formula_callback(this);
           }
         }
         else {
@@ -228,9 +236,35 @@ protected:
   void check_coi(int index) {
     auto it = minimal_sizes.find(_tts[index].second);
     if (it != minimal_sizes.end()) {
-      if (_dags[_current_dag].get_cois()[index].size() > it->second) {
+      if (_dags[_current_dag].get_cois()[index].size() > it->second) { // in this case the TT at this node has been formed with a non minimal structure -> skip
         minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
         simulation_duplicates++;
+      }
+      else { // TT at this node has been formed with a minimal structure
+        // Problem: substructures have conflicting minimal representations in very rare cases
+
+        // debug
+//        std::vector<int> assignments;
+        size_t hash_value = 0;
+        for (int i = 0; i < _dags[_current_dag].get_cois()[index].size(); ++i) {
+          hash_combine(hash_value, *(_current_assignments[_dags[_current_dag].get_cois()[index][i]]));
+          // debug
+//          assignments.emplace_back(*(_current_assignments[_dags[_current_dag].get_cois()[index][i]]));
+        }
+//        if (assignments.size() == 9 && assignments[8] == 1 && assignments[7] == 0 && assignments[6] == 4 && assignments[5] == 1 && assignments[4] == 0 && assignments[3] == 6  && assignments[2] == 5  && assignments[1] == 2  && assignments[0] == 4) {
+//          bool stop_here = true;
+//        }
+        auto it_seen = seen_tts[index].find(_tts[index].second);
+        if (it_seen == seen_tts[index].end()) { // never seen -> insert
+          seen_tts[index].emplace(_tts[index].second, hash_value);
+//          seen_tts_debug[index].insert({_tts[index].second, assignments});
+        }
+        else if (it_seen != seen_tts[index].end() && it_seen->second == hash_value) {} // that's the allowed value -> do nothing
+        else /* if (it_seen != seen_tts[index].end() && it_seen->second != hash_value) */ { // that's the NOT allowed value -> skip
+//          auto debug_it = seen_tts_debug[index].find(_tts[index].second);
+          minimal_indexes.emplace_back(_dags[_current_dag].get_minimal_index(index));
+          simulation_duplicates++;
+        }
       }
     }
   };
@@ -241,10 +275,6 @@ protected:
       simulation_duplicates++;
     }
   };
-
-  void check_same_size(int index) {
-
-  }
 
   void update_tt_(int index) {
     // now lets construct the children nodes
@@ -427,7 +457,9 @@ protected:
     _tts_map_gates.reserve(_dags[_current_dag].nr_vertices());
 
     seen_tts.clear();
-    seen_tts.reserve(_dags[_current_dag].nr_vertices());
+    seen_tts.resize(_dags[_current_dag].nr_vertices());
+    seen_tts_debug.clear();
+    seen_tts_debug.resize(_dags[_current_dag].nr_vertices());
 
     // initialize the possible assignments and the TTs
     _tts.clear();
@@ -566,7 +598,9 @@ public:
   std::vector<std::vector<unsigned>> _possible_assignments;
   std::vector<std::pair<bool, kitty::dynamic_truth_table>> _tts;
   robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>> minimal_sizes; // key: TT, value: minimal size
-  std::vector<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, int, kitty::hash<kitty::dynamic_truth_table>>> seen_tts; // an hash map for each gate
+  std::deque<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, size_t, kitty::hash<kitty::dynamic_truth_table>>> seen_tts; // an hash map for each gate
+  std::deque<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, std::vector<int>, kitty::hash<kitty::dynamic_truth_table>>> seen_tts_debug; // an hash map for each gate
+  //TODO: try with storing the std::vector instead of the int (hash(std::vector))
   long to_enumeration_type_time = 0;
   struct timespec ts;
 
