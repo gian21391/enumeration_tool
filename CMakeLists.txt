@@ -25,6 +25,16 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/TBBBuild.cmake)
 
 add_definitions(-DPERFORMANCE_MONITORING -DTBB_USE_GLIBCXX_VERSION=70400)
 
+#add_definitions(-fprofile-generate)
+#set(LINKER_FLAGS "${LINKER_FLAGS} -fprofile-generate")
+
+#add_definitions(-fprofile-use)
+#set(LINKER_FLAGS "${LINKER_FLAGS} -fprofile-use")
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LINKER_FLAGS}")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${LINKER_FLAGS}")
+set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} ${LINKER_FLAGS}")
+
 add_library(enumeration_tool INTERFACE)
 target_include_directories(enumeration_tool INTERFACE include)
 target_link_libraries(enumeration_tool INTERFACE
