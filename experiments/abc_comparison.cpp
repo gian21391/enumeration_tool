@@ -28,6 +28,7 @@
 #include <mockturtle/algorithms/simulation.hpp>
 #include <mockturtle/io/write_aiger.hpp>
 #include <nlohmann/json.hpp>
+#include <robin_hood.h>
 
 #include <iomanip>
 #include <sstream>
@@ -48,16 +49,17 @@ auto generate_target_functions(uint32_t var_num, uint32_t tts_num) -> std::vecto
   return tts;
 }
 
-auto generate_npn_class(const std::string& function) -> std::unordered_set<std::string> {
-  std::unordered_set<std::string> npn_class;
-  npn_class.emplace(function);
+auto generate_npn_class(const std::string& function) -> robin_hood::unordered_flat_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>> {
+  robin_hood::unordered_flat_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>> npn_class;
 
-  auto var_num = std::log2(function.size()) + 2;
-  kitty::dynamic_truth_table tt(var_num);
+  auto var_num = static_cast<int>(std::log2(function.size()) + 2);
+
+  kitty::dynamic_truth_table tt{var_num};
   kitty::create_from_hex_string(tt, function);
+  npn_class.emplace(tt);
 
   kitty::exact_npn_canonization(tt, [&](auto tt){
-    npn_class.emplace(kitty::to_hex(tt));
+    npn_class.emplace(tt);
   });
 
   return npn_class;
@@ -109,17 +111,13 @@ auto main() -> int
       use_formula =
       [&](enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>* enumerator) -> void {
         num_circuits_generated++;
-        const auto value = kitty::to_hex(enumerator->get_root_tt());
-
 //        std::cout << enumerator->get_current_solution(true) << std::endl;
 
-        auto find_result = npn_class.find(value);
-        if (find_result != npn_class.end()) {
+        if (npn_class.contains(enumerator->get_root_tt())) {
+          const auto value = kitty::to_hex(enumerator->get_root_tt());
           found_formulas[enumerator->current_dag_aig_pre_enumeration]++;
           std::cout << fmt::format("Found {}!!", value) << std::endl;
           std::cout << "Num gates: " << enumerator->_dags[enumerator->_current_dag].nr_gates_vertices << std::endl;
-          std::cout << "Number of circuits: " << num_circuits_generated << std::endl;
-          std::cout << "Simulation duplicates: " << enumerator->simulation_duplicates << std::endl;
 //          std::cout << enumerator->get_current_solution(true) << std::endl;
           std::stringstream aiger_output;
           auto ntk = *(enumerator->to_enumeration_type());
@@ -178,6 +176,8 @@ auto main() -> int
       duration = total_time / 50;
     }
 
+    std::cout << "Number of circuits: " << num_circuits_generated << std::endl;
+    std::cout << "Simulation duplicates: " << en.simulation_duplicates << std::endl;
     std::cout << "Enumeration time: " << duration << std::endl;
     solution["time"] = duration;
     j.emplace_back(solution);
@@ -196,7 +196,7 @@ auto main() -> int
 
 void runtime_test() {
 
-  std::vector<std::string> missing_functions = {"16"};
+  std::vector<std::string> missing_functions = {"69"};
   int min_vertices = 1;
   int max_vertices = 6;
 
@@ -235,18 +235,16 @@ void runtime_test() {
       use_formula =
       [&](enumeration_tool::partial_dag_enumerator<mockturtle::aig_network, mockturtle::aig_network::signal, EnumerationSymbols>* enumerator) -> void {
         num_circuits_generated++;
-        const auto value = kitty::to_hex(enumerator->get_root_tt());
 
-        std::cout << "TT: " << value << std::endl;
-        std::cout << enumerator->get_current_solution(true) << std::endl;
+//        std::cout << "TT: " << value << std::endl;
+//        std::cout << enumerator->get_current_solution(true) << std::endl;
 
-        auto find_result = npn_class.find(value);
+        auto find_result = npn_class.find(enumerator->get_root_tt());
         if (find_result != npn_class.end()) {
+          const auto value = kitty::to_hex(enumerator->get_root_tt());
           found_formulas[enumerator->current_dag_aig_pre_enumeration]++;
           std::cout << fmt::format("Found {}!!", value) << std::endl;
           std::cout << "Num gates: " << enumerator->_dags[enumerator->_current_dag].nr_gates_vertices << std::endl;
-          std::cout << "Number of circuits: " << num_circuits_generated << std::endl;
-          std::cout << "Simulation duplicates: " << enumerator->simulation_duplicates << std::endl;
 //          std::cout << enumerator->get_current_solution(true) << std::endl;
           std::stringstream aiger_output;
           auto ntk = *(enumerator->to_enumeration_type());
@@ -305,6 +303,8 @@ void runtime_test() {
       duration = total_time / 50;
     }
 
+    std::cout << "Number of circuits: " << num_circuits_generated << std::endl;
+    std::cout << "Simulation duplicates: " << en.simulation_duplicates << std::endl;
     std::cout << "Enumeration time: " << duration << std::endl;
     solution["time"] = duration;
     j.emplace_back(solution);
