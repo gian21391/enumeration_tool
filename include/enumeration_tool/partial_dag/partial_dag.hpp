@@ -15,6 +15,8 @@
 
 #include <iterator_tpl.h>
 #include <nauty.h>
+#include <fmt/format.h>
+#include <experimental/iterator>
 
 #include "../utils.hpp"
 
@@ -192,7 +194,9 @@ public:
     cois = std::vector<std::vector<int>>{vertices.size()};
 
     std::function<void(int, int)> update_cois = [&](int index, int current_index){
-      cois[index].emplace_back(current_index);
+      if (!(vertices[current_index][0] == 0 && vertices[current_index][1] == 0)) {
+        cois[index].emplace_back(current_index);
+      }
       for (auto input : vertices[current_index]) {
         if (input != 0) {
           update_cois(index, input - 1);
@@ -1023,4 +1027,33 @@ inline void to_dot(partial_dag const& pdag, std::string const& filename)
   to_dot(pdag, ofs);
   ofs.close();
 }
+
+inline auto to_mathematica(const partial_dag& pdag) -> std::string {
+  std::unordered_set<std::vector<int>> edges;
+  for (int i = 0; i < pdag.nr_vertices(); i++) {
+    for (auto value : pdag.get_vertices()[i]) {
+      if (value != 0) {
+        std::vector<int> edge;
+        edge.emplace_back(i + 1);
+        edge.emplace_back(value);
+        edges.emplace(edge);
+      }
+    }
+  }
+
+  // Graph[{4 -> 2, 4 -> 3, 3 -> 1}];
+  std::vector<std::string> formatted_edges;
+  formatted_edges.reserve(edges.size());
+  for (const auto& edge : edges) {
+    formatted_edges.emplace_back(fmt::format("{} -> {}", edge[0], edge[1]));
+  }
+
+  std::stringstream ss;
+  ss << "Graph[{";
+  std::copy(formatted_edges.begin(), formatted_edges.end(), std::experimental::make_ostream_joiner(ss, ", "));
+  ss << "}]";
+
+  return ss.str();
+}
+
 }
