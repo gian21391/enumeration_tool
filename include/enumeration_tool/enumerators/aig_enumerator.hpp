@@ -41,7 +41,7 @@ public:
 
   [[nodiscard]]
   auto get_symbol_types() const -> std::vector<SymbolType> override
-  {//          0    1  2  3   4        5         6         7         8         9        10
+  {//        0  1  2   3       4         5         6         7         8         9        10
     return { A, B, C, And, And_T_FT, And_T_FF, And_T_TF };
   }
 
@@ -135,6 +135,7 @@ public:
     if (t == A) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) mutable -> TruthTable { assert(tts.size() == 0); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 0)); created = true; } return tt; };}
     if (t == B) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) mutable -> TruthTable { assert(tts.size() == 0); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 1)); created = true; } return tt; };}
     if (t == C) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) mutable -> TruthTable { assert(tts.size() == 0); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 2)); created = true; } return tt; };}
+//    if (t == D) { return [&, created = false, tt = TruthTable(get_terminal_symbol_types().size())](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) mutable -> TruthTable { assert(tts.size() == 0); if (!created) { kitty::create_from_hex_string(tt, create_hex_string(get_terminal_symbol_types().size(), 3)); created = true; } return tt; };}
     if (t == And_F_TT) { return [](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) -> TruthTable { assert(tts.size() == 2); return ~((*tts.begin()) & (*(tts.begin() + 1))); };}
     if (t == And_F_FT) { return [](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) -> TruthTable { assert(tts.size() == 2); return ~((~(*tts.begin())) & *(tts.begin() + 1)); };}
     if (t == And_T_FT) { return [](const std::initializer_list<std::reference_wrapper<const TruthTable>>& tts) -> TruthTable { assert(tts.size() == 2); return ((~(*tts.begin())) & *(tts.begin() + 1)); };}
