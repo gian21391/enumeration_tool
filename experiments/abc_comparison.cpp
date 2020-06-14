@@ -178,6 +178,7 @@ auto main() -> int
 
     std::cout << "Number of circuits: " << num_circuits_generated << std::endl;
     std::cout << "Simulation duplicates: " << en.simulation_duplicates << std::endl;
+    std::cout << "TTs duplicates: " << en.tts_duplicates << std::endl;
     std::cout << "Enumeration time: " << duration << std::endl;
     solution["time"] = duration;
     j.emplace_back(solution);
