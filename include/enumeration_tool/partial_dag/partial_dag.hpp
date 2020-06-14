@@ -5,18 +5,19 @@
 #endif
 
 #include <cassert>
+#include <experimental/iterator>
 #include <fstream>
 #include <functional>
+#include <numeric>
 #include <ostream>
 #include <set>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include <fmt/format.h>
 #include <iterator_tpl.h>
 #include <nauty.h>
-#include <fmt/format.h>
-#include <experimental/iterator>
 
 #include "../utils.hpp"
 
@@ -36,6 +37,7 @@ private:
   std::vector<std::vector<int>> cois;
   std::vector<int> minimal_indices;
   std::vector<int> num_children;
+  std::vector<std::size_t> subtrees_hashes;
   bool initialized = false;
 
 public:
@@ -69,11 +71,57 @@ public:
       nr_PI_vertices = vertices.size() - nr_gates_vertices;
     }
 
+    make_canonical(vertices);
     initialize_cois();
     construct_parents();
     initialize_dfs_sequence();
     initialize_minimal_indices();
     initialize_num_children();
+    initialize_subtrees_hashes();
+  }
+
+  void initialize_subtrees_hashes() {
+    assert(cois.size() == vertices.size());
+
+    subtrees_hashes.resize(vertices.size());
+    for (int i = 0; i < vertices.size(); ++i) {
+      std::vector<std::vector<int>> subgraph;
+      std::vector<int> pi_nodes;
+      auto num_pis = 0;
+
+      for (auto index : cois[i]) {
+        subgraph.emplace_back(vertices[index]);
+
+        if (vertices[vertices[index][0] - 1][0] == 0 && vertices[vertices[index][0] - 1][1] == 0) {
+          pi_nodes.emplace_back(vertices[index][0]);
+          num_pis++;
+        }
+        if (vertices[vertices[index][1] - 1][0] == 0 && vertices[vertices[index][1] - 1][1] == 0) {
+          pi_nodes.emplace_back(vertices[index][1]);
+          num_pis++;
+        }
+      }
+
+      for (int j = 0; j < subgraph.size(); ++j) {
+        if (subgraph[j][0]
+      }
+
+      make_canonical(subgraph);
+
+      std::size_t seed = 0;
+      for (const auto& vertex : subgraph) {
+        hash_combine(seed, vertex);
+      }
+      subtrees_hashes[i] = seed;
+    }
+  }
+
+  auto get_subtree_hash(int index) -> std::size_t { assert(initialized); return subtrees_hashes[index]; }
+
+  static void make_canonical(std::vector<std::vector<int>>& v) {
+    for (const auto& vertex : v) {
+      std::sort(vertex.begin(), vertex.end(), std::greater<>());
+    }
   }
 
   void add_PI_nodes() {
