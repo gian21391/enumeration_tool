@@ -222,25 +222,6 @@ public:
 
 protected:
 
-
-
-//  void add_tts_to_store() {
-//    auto root_index = _dags[_current_dag].get_last_vertex_index();
-//    auto root_hash = _dags[_current_dag].get_subtree_hash(root_index);
-//
-//    auto it = tts_store.find(root_hash);
-//    if (it != tts_store.end()) { // existing
-//      it->second.emplace(_tts[root_index].second);
-//    }
-//    else {
-//      tts_store.emplace(root_hash, robin_hood::unordered_flat_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>>{});
-//      auto [new_it, inserted] = tts_store.at(root_hash).emplace(_tts[root_index].second);
-//      if (!inserted) {
-//        tts_duplicates++;
-//      }
-//    }
-//  }
-
   void check_same_gate(int index) {
     auto it = _tts_map_gates.find(_tts[index].second);
     if (it != _tts_map_gates.end()) {
@@ -629,8 +610,6 @@ public:
 
   std::deque<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, size_t, kitty::hash<kitty::dynamic_truth_table>>> seen_tts; // an hash map for each gate
   std::deque<robin_hood::unordered_flat_map<kitty::dynamic_truth_table, std::vector<int>, kitty::hash<kitty::dynamic_truth_table>>> seen_tts_debug; // an hash map for each gate
-
-//  robin_hood::unordered_flat_map<size_t, robin_hood::unordered_flat_set<kitty::dynamic_truth_table, kitty::hash<kitty::dynamic_truth_table>>> tts_store;
 
   //TODO: try with storing the std::vector instead of the int (hash(std::vector))
   long to_enumeration_type_time = 0;
