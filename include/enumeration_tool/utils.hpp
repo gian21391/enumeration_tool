@@ -173,7 +173,7 @@ struct measure
 };
 
 template <class T>
-inline void hash_combine(std::size_t& seed, const T& v)
+inline void hash_combine(std::size_t& seed, const T& v) noexcept
 {
   std::hash<T> hasher;
   seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
@@ -184,7 +184,7 @@ namespace std {
 template <>
 struct hash<std::vector<int>>
 {
-  std::size_t operator()(std::vector<int> const& vec) const noexcept
+  std::size_t operator()(const std::vector<int>& vec) const noexcept
   {
     std::size_t seed = vec.size();
     for(auto& i : vec) {
